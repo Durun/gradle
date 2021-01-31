@@ -19,10 +19,13 @@ package org.gradle.smoketests
 import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.gradle.integtests.fixtures.android.AndroidHome
 import org.gradle.testkit.runner.GradleRunner
+
+import spock.lang.Ignore
 import spock.lang.Unroll
 
 import static org.gradle.testkit.runner.TaskOutcome.SUCCESS
 
+@Ignore("https://github.com/gradle/gradle-private/issues/3282")
 class KotlinPluginAndroidGroovyDSLSmokeTest extends AbstractSmokeTest {
     // TODO:configuration-cache remove once fixed upstream
     @Override
@@ -31,10 +34,11 @@ class KotlinPluginAndroidGroovyDSLSmokeTest extends AbstractSmokeTest {
     }
 
     @Unroll
-    @UnsupportedWithConfigurationCache(iterationMatchers = [KotlinPluginSmokeTest.NO_CONFIGURATION_CACHE_ITERATION_MATCHER, AGP_3_ITERATION_MATCHER, AGP_4_0_ITERATION_MATCHER])
+    @UnsupportedWithConfigurationCache(iterationMatchers = [KotlinPluginSmokeTest.NO_CONFIGURATION_CACHE_ITERATION_MATCHER, AGP_4_0_ITERATION_MATCHER])
     def "kotlin android on android-kotlin-example (kotlin=#kotlinPluginVersion, agp=#androidPluginVersion, workers=#workers)"(String kotlinPluginVersion, String androidPluginVersion, boolean workers) {
         given:
         AndroidHome.assertIsSet()
+        AGP_VERSIONS.assumeCurrentJavaVersionIsSupportedBy(androidPluginVersion)
         useSample("android-kotlin-example")
 
         def buildFileName = "build.gradle"
@@ -47,7 +51,8 @@ class KotlinPluginAndroidGroovyDSLSmokeTest extends AbstractSmokeTest {
         }
 
         when:
-        def result = useAgpVersion(androidPluginVersion, runner(workers, 'clean', ':app:testDebugUnitTestCoverage')).build()
+        def runner = createRunner(workers, 'clean', ':app:testDebugUnitTestCoverage')
+        def result = useAgpVersion(androidPluginVersion, runner).build()
 
         then:
         result.task(':app:testDebugUnitTestCoverage').outcome == SUCCESS
@@ -72,7 +77,7 @@ class KotlinPluginAndroidGroovyDSLSmokeTest extends AbstractSmokeTest {
         ].combinations()
     }
 
-    private GradleRunner runner(boolean workers, String... tasks) {
+    private GradleRunner createRunner(boolean workers, String... tasks) {
         return runner(tasks + ["--parallel", "-Pkotlin.parallel.tasks.in.project=$workers"] as String[])
                 .forwardOutput()
     }

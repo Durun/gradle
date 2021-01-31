@@ -40,7 +40,9 @@ import org.gradle.composite.internal.IncludedBuildTaskGraph
 import org.gradle.configuration.internal.TestListenerBuildOperationDecorator
 import org.gradle.execution.TaskSelector
 import org.gradle.execution.plan.AbstractExecutionPlanSpec
+import org.gradle.execution.plan.DefaultExecutionPlan
 import org.gradle.execution.plan.DefaultPlanExecutor
+import org.gradle.execution.plan.ExecutionNodeAccessHierarchy
 import org.gradle.execution.plan.LocalTaskNode
 import org.gradle.execution.plan.Node
 import org.gradle.execution.plan.NodeExecutor
@@ -53,12 +55,16 @@ import org.gradle.internal.concurrent.DefaultParallelismConfiguration
 import org.gradle.internal.concurrent.ExecutorFactory
 import org.gradle.internal.concurrent.ManagedExecutor
 import org.gradle.internal.event.DefaultListenerManager
+import org.gradle.internal.file.Stat
 import org.gradle.internal.operations.TestBuildOperationExecutor
 import org.gradle.internal.resources.DefaultResourceLockCoordinationService
 import org.gradle.internal.service.ServiceRegistry
 import org.gradle.internal.service.scopes.Scopes
 import org.gradle.internal.work.DefaultWorkerLeaseService
 import org.gradle.internal.work.WorkerLeaseRegistry
+import org.gradle.util.Path
+
+import static org.gradle.internal.snapshot.CaseSensitivity.CASE_SENSITIVE
 
 class DefaultTaskExecutionGraphSpec extends AbstractExecutionPlanSpec {
     def cancellationToken = Mock(BuildCancellationToken)
@@ -76,7 +82,22 @@ class DefaultTaskExecutionGraphSpec extends AbstractExecutionPlanSpec {
     def taskNodeFactory = new TaskNodeFactory(thisBuild, Stub(IncludedBuildTaskGraph))
     def dependencyResolver = new TaskDependencyResolver([new TaskNodeDependencyResolver(taskNodeFactory)])
     def projectStateRegistry = Stub(ProjectStateRegistry)
-    def taskGraph = new DefaultTaskExecutionGraph(new DefaultPlanExecutor(parallelismConfiguration, executorFactory, workerLeases, cancellationToken, coordinationService), [nodeExecutor], buildOperationExecutor, listenerBuildOperationDecorator, coordinationService, thisBuild, taskNodeFactory, dependencyResolver, graphListeners, taskExecutionListeners, listenerRegistrationListener, projectStateRegistry, Stub(ServiceRegistry), Stub(TaskSelector))
+    def executionPlan = new DefaultExecutionPlan(Path.ROOT.toString(), taskNodeFactory, dependencyResolver, nodeValidator, new ExecutionNodeAccessHierarchy(CASE_SENSITIVE, Stub(Stat)), new ExecutionNodeAccessHierarchy(CASE_SENSITIVE, Stub(Stat)))
+    def taskGraph = new DefaultTaskExecutionGraph(
+        new DefaultPlanExecutor(parallelismConfiguration, executorFactory, workerLeases, cancellationToken, coordinationService),
+        [nodeExecutor],
+        buildOperationExecutor,
+        listenerBuildOperationDecorator,
+        coordinationService,
+        thisBuild,
+        executionPlan,
+        graphListeners,
+        taskExecutionListeners,
+        listenerRegistrationListener,
+        projectStateRegistry,
+        Stub(ServiceRegistry),
+        Stub(TaskSelector)
+    )
     WorkerLeaseRegistry.WorkerLeaseCompletion parentWorkerLease
     def executedTasks = []
     def failures = []
@@ -364,7 +385,21 @@ class DefaultTaskExecutionGraphSpec extends AbstractExecutionPlanSpec {
 
     def "notifies graph listener before first execute"() {
         def planExecutor = Mock(PlanExecutor)
-        def taskGraph = new DefaultTaskExecutionGraph(planExecutor, [nodeExecutor], buildOperationExecutor, listenerBuildOperationDecorator, coordinationService, thisBuild, taskNodeFactory, dependencyResolver, graphListeners, taskExecutionListeners, listenerRegistrationListener, projectStateRegistry, Stub(ServiceRegistry), Stub(TaskSelector))
+        def taskGraph = new DefaultTaskExecutionGraph(
+            planExecutor,
+            [nodeExecutor],
+            buildOperationExecutor,
+            listenerBuildOperationDecorator,
+            coordinationService,
+            thisBuild,
+            executionPlan,
+            graphListeners,
+            taskExecutionListeners,
+            listenerRegistrationListener,
+            projectStateRegistry,
+            Stub(ServiceRegistry),
+            Stub(TaskSelector)
+        )
         TaskExecutionGraphListener listener = Mock(TaskExecutionGraphListener)
         Task a = task("a")
 
@@ -389,7 +424,21 @@ class DefaultTaskExecutionGraphSpec extends AbstractExecutionPlanSpec {
 
     def "executes whenReady listener before first execute"() {
         def planExecutor = Mock(PlanExecutor)
-        def taskGraph = new DefaultTaskExecutionGraph(planExecutor, [nodeExecutor], buildOperationExecutor, listenerBuildOperationDecorator, coordinationService, thisBuild, taskNodeFactory, dependencyResolver, graphListeners, taskExecutionListeners, listenerRegistrationListener, projectStateRegistry, Stub(ServiceRegistry), Stub(TaskSelector))
+        def taskGraph = new DefaultTaskExecutionGraph(
+            planExecutor,
+            [nodeExecutor],
+            buildOperationExecutor,
+            listenerBuildOperationDecorator,
+            coordinationService,
+            thisBuild,
+            executionPlan,
+            graphListeners,
+            taskExecutionListeners,
+            listenerRegistrationListener,
+            projectStateRegistry,
+            Stub(ServiceRegistry),
+            Stub(TaskSelector)
+        )
         def closure = Mock(Closure)
         def action = Mock(Action)
         Task a = task("a")
@@ -502,7 +551,7 @@ class DefaultTaskExecutionGraphSpec extends AbstractExecutionPlanSpec {
         final Task a = task("a", task("a-dep"))
         Task b = task("b")
         Spec<Task> spec = new Spec<Task>() {
-            public boolean isSatisfiedBy(Task element) {
+            boolean isSatisfiedBy(Task element) {
                 return element != a
             }
         }
@@ -528,7 +577,7 @@ class DefaultTaskExecutionGraphSpec extends AbstractExecutionPlanSpec {
         Task b = task("b")
         Task c = task("c", a, b)
         Spec<Task> spec = new Spec<Task>() {
-            public boolean isSatisfiedBy(Task element) {
+            boolean isSatisfiedBy(Task element) {
                 return element != a
             }
         }

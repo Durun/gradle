@@ -86,7 +86,7 @@ class PerformanceTest(
                             extraParameters,
                             os
                         ) +
-                            buildToolGradleParameters(isContinue = false) +
+                            buildToolGradleParameters() +
                             buildScanTag("PerformanceTest")
                         ).joinToString(separator = " ")
                 }

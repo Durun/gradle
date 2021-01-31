@@ -19,7 +19,6 @@ package org.gradle.api.tasks.compile;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
-import org.gradle.api.Incubating;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -30,7 +29,6 @@ import org.gradle.api.internal.FeaturePreviews;
 import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.internal.file.FileTreeInternal;
 import org.gradle.api.internal.file.TemporaryFileProvider;
-import org.gradle.api.internal.tasks.JavaToolChainFactory;
 import org.gradle.api.internal.tasks.compile.CleaningJavaCompiler;
 import org.gradle.api.internal.tasks.compile.CompilationSourceDirs;
 import org.gradle.api.internal.tasks.compile.CompilerForkUtils;
@@ -63,6 +61,7 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.WorkResult;
 import org.gradle.internal.file.Deleter;
 import org.gradle.internal.jvm.Jvm;
+import org.gradle.internal.jvm.inspection.JvmMetadataDetector;
 import org.gradle.jvm.toolchain.JavaInstallationMetadata;
 import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.language.base.internal.compile.Compiler;
@@ -123,7 +122,6 @@ public class GroovyCompile extends AbstractCompile implements HasCompileOptions 
      * @since 5.6
      */
     @Classpath
-    @Incubating
     public ConfigurableFileCollection getAstTransformationClasspath() {
         return astTransformationClasspath;
     }
@@ -171,7 +169,6 @@ public class GroovyCompile extends AbstractCompile implements HasCompileOptions 
      * @since 5.6
      */
     @LocalState
-    @Incubating
     protected File getSourceClassesMappingFile() {
         if (sourceClassesMappingFile == null) {
             File tmpDir = getServices().get(TemporaryFileProvider.class).newTemporaryFile(getName());
@@ -224,7 +221,6 @@ public class GroovyCompile extends AbstractCompile implements HasCompileOptions 
      *
      * @since 5.6
      */
-    @Incubating
     @SkipWhenEmpty
     @IgnoreEmptyDirectories
     @PathSensitive(PathSensitivity.RELATIVE) // Java source files are supported, too. Therefore we should care about the relative path.
@@ -372,18 +368,11 @@ public class GroovyCompile extends AbstractCompile implements HasCompileOptions 
         if (javaLauncher.isPresent()) {
             return javaLauncher.get().getMetadata().getLanguageVersion().toString();
         }
+        final File customHome = getOptions().getForkOptions().getJavaHome();
+        if(customHome != null) {
+            return getServices().get(JvmMetadataDetector.class).getMetadata(customHome).getLanguageVersion().getMajorVersion();
+        }
         return JavaVersion.current().getMajorVersion();
-    }
-
-    /**
-     * We need to track the toolchain used by the Groovy compiler to compile Java sources.
-     *
-     * @since 4.0
-     */
-    @Nested
-    @Deprecated
-    protected org.gradle.jvm.toolchain.JavaToolChain getJavaToolChain() {
-        return getJavaToolChainFactory().forCompileOptions(getOptions());
     }
 
     /**
@@ -441,16 +430,10 @@ public class GroovyCompile extends AbstractCompile implements HasCompileOptions 
      * @return the java launcher property
      * @since 6.8
      */
-    @Incubating
     @Nested
     @Optional
     public Property<JavaLauncher> getJavaLauncher() {
         return javaLauncher;
-    }
-
-    @Inject
-    protected JavaToolChainFactory getJavaToolChainFactory() {
-        throw new UnsupportedOperationException();
     }
 
     @Inject

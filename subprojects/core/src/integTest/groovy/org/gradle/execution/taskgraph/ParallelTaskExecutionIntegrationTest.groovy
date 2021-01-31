@@ -36,10 +36,7 @@ class ParallelTaskExecutionIntegrationTest extends AbstractIntegrationSpec {
         settingsFile << 'include "a", "b"'
 
         buildFile << """
-            import org.gradle.workers.WorkerExecutor
-            import org.gradle.workers.IsolationMode
-
-            class SerialPing extends DefaultTask {
+            abstract class SerialPing extends DefaultTask {
 
                 SerialPing() { outputs.upToDateWhen { false } }
 
@@ -49,16 +46,13 @@ class ParallelTaskExecutionIntegrationTest extends AbstractIntegrationSpec {
                 }
             }
 
-            public class TestParallelRunnable implements Runnable {
-                final String path
+            interface TestParallelWorkActionConfig extends WorkParameters {
+                Property<String> getPath()
+            }
 
-                @Inject
-                public TestParallelRunnable(String path) {
-                    this.path = path
-                }
-
-                public void run() {
-                    new URL("http://localhost:${blockingServer.port}/" + path).text
+            abstract class TestParallelWorkAction implements WorkAction<TestParallelWorkActionConfig> {
+                void execute() {
+                    new URL("http://localhost:${blockingServer.port}/" + parameters.path.get()).text
                 }
             }
 
@@ -71,11 +65,19 @@ class ParallelTaskExecutionIntegrationTest extends AbstractIntegrationSpec {
 
                 @TaskAction
                 void ping() {
-                    workerExecutor.submit(TestParallelRunnable) { config ->
-                        config.params = [ path ]
-                        config.isolationMode = IsolationMode.NONE
+                    def taskPath = path
+                    workerExecutor.noIsolation().submit(TestParallelWorkAction) { config ->
+                        config.path.set(taskPath)
                     }
                 }
+            }
+
+            abstract class InvalidPing extends Ping {
+                @Optional @Input File invalidInput
+            }
+
+            abstract class PingWithCacheableWarnings extends Ping {
+                @Optional @InputFile File invalidInput
             }
 
             class FailingPing extends DefaultTask {
@@ -98,6 +100,16 @@ class ParallelTaskExecutionIntegrationTest extends AbstractIntegrationSpec {
                 tasks.addRule("<>FailingPing") { String name ->
                     if (name.endsWith("FailingPing")) {
                         tasks.create(name, FailingPing)
+                    }
+                }
+                tasks.addRule("<>InvalidPing") { String name ->
+                    if (name.endsWith("InvalidPing")) {
+                        tasks.create(name, InvalidPing)
+                    }
+                }
+                tasks.addRule("<>PingWithCacheableWarnings") { String name ->
+                    if (name.endsWith("PingWithCacheableWarnings")) {
+                        tasks.create(name, PingWithCacheableWarnings)
                     }
                 }
                 tasks.addRule("<>SerialPing") { String name ->
@@ -452,6 +464,49 @@ class ParallelTaskExecutionIntegrationTest extends AbstractIntegrationSpec {
             blockingServer.expectConcurrent(":aPing")
             fails ":aPing"
             failure.assertHasCause "BOOM!"
+        }
+    }
+
+    def "other tasks are not started when an invalid task task is running"() {
+        given:
+        withParallelThreads(3)
+
+        expect:
+        2.times {
+            executer.expectDocumentedDeprecationWarning("Property 'invalidInput' has @Input annotation used on property of type 'File'. " +
+                "This behaviour has been deprecated and is scheduled to be removed in Gradle 7.0. " +
+                "Execution optimizations are disabled due to the failed validation. " +
+                "See https://docs.gradle.org/current/userguide/more_about_tasks.html#sec:up_to_date_checks for more details.")
+
+            blockingServer.expect(":aInvalidPing")
+            blockingServer.expectConcurrent(":bPing", ":cPing")
+            run ":aInvalidPing", ":bPing", ":cPing"
+        }
+    }
+
+    def "cacheability warnings do not prevent a task from running in parallel"() {
+        given:
+        withParallelThreads(3)
+
+        expect:
+        blockingServer.expectConcurrent(":aPingWithCacheableWarnings", ":bPing", ":cPing")
+        run ":aPingWithCacheableWarnings", ":bPing", ":cPing"
+    }
+
+    def "invalid task is not executed in parallel with other task"() {
+        given:
+        withParallelThreads(3)
+
+        expect:
+        2.times {
+            executer.expectDocumentedDeprecationWarning("Property 'invalidInput' has @Input annotation used on property of type 'File'. " +
+                "This behaviour has been deprecated and is scheduled to be removed in Gradle 7.0. " +
+                "Execution optimizations are disabled due to the failed validation. " +
+                "See https://docs.gradle.org/current/userguide/more_about_tasks.html#sec:up_to_date_checks for more details.")
+
+            blockingServer.expectConcurrent(":aPing", ":bPing")
+            blockingServer.expect(":cInvalidPing")
+            run ":aPing", ":bPing", ":cInvalidPing"
         }
     }
 }

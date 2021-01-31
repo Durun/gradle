@@ -166,7 +166,7 @@ someTask.inputs.property "someValue", new CustomType("value1")
 
 ${customSerializableType()}
 """
-        buildFile << """
+        buildFile """
 task someTask {
     def f = file("build/e1")
     outputs.dir f
@@ -352,7 +352,7 @@ task someTask {
     }
 
     @Unroll
-    @ToBeFixedForConfigurationCache(because = "ClassNotFoundException: ArrayList1_groovyProxy", iterationMatchers = '.*\\[2\\]$')
+    @ToBeFixedForConfigurationCache(because = "ClassNotFoundException: ArrayList1_groovyProxy", iterationMatchers = '.*\\[type: Map, #2\\]$')
     def "task can take as input a collection of custom types from various sources"() {
         def buildSrcType = file("buildSrc/src/main/java/CustomType.java")
         buildSrcType << customSerializableType()

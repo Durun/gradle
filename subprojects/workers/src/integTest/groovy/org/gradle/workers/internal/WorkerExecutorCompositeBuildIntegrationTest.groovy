@@ -29,10 +29,16 @@ class WorkerExecutorCompositeBuildIntegrationTest extends AbstractIntegrationSpe
     @Unroll
     @Issue("https://github.com/gradle/gradle/issues/10317")
     def "can use worker api with composite builds using #pluginId"() {
+        if (pluginId == 'legacy-worker-plugin' ) {
+            executer.expectDocumentedDeprecationWarning("The WorkerExecutor.submit() method has been deprecated. This is scheduled to be removed in Gradle 8.0. Please use the noIsolation(), classLoaderIsolation() or processIsolation() method instead. See https://docs.gradle.org/current/userguide/upgrading_version_5.html#method_workerexecutor_submit_is_deprecated for more details.")
+        }
+
         settingsFile << """
+            pluginManagement {
+                includeBuild "plugin"
+            }
             rootProject.name = "app"
 
-            includeBuild "plugin"
             includeBuild "lib"
         """
 
@@ -40,6 +46,11 @@ class WorkerExecutorCompositeBuildIntegrationTest extends AbstractIntegrationSpe
         withLegacyWorkerPluginInPluginBuild()
         withTypedWorkerPluginInPluginBuild()
 
+        lib.file('settings.gradle') << """
+            pluginManagement {
+                includeBuild "../plugin"
+            }
+        """
         lib.file("build.gradle") << """
             buildscript {
                 dependencies {

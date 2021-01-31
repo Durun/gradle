@@ -20,8 +20,6 @@ import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.gradle.integtests.fixtures.android.AndroidHome
 import org.gradle.testkit.runner.TaskOutcome
 import org.gradle.util.GradleVersion
-import org.gradle.util.Requires
-import org.gradle.util.TestPrecondition
 import org.gradle.util.VersionNumber
 import spock.lang.Unroll
 
@@ -34,7 +32,6 @@ import spock.lang.Unroll
  * https://androidstudio.googleblog.com/
  *
  */
-@Requires(TestPrecondition.JDK11_OR_EARLIER)
 class AndroidPluginsSmokeTest extends AbstractSmokeTest {
 
     public static final String JAVA_COMPILE_DEPRECATION_MESSAGE = "Extending the JavaCompile task has been deprecated. This is scheduled to be removed in Gradle 7.0. Configure the task instead."
@@ -50,12 +47,15 @@ class AndroidPluginsSmokeTest extends AbstractSmokeTest {
     }
 
     @Unroll
-    @UnsupportedWithConfigurationCache(iterationMatchers = [AGP_3_ITERATION_MATCHER, AGP_4_0_ITERATION_MATCHER])
+    @UnsupportedWithConfigurationCache(iterationMatchers = AGP_4_0_ITERATION_MATCHER)
     def "android library and application APK assembly (agp=#agpVersion, ide=#ide)"(
         String agpVersion, boolean ide
     ) {
 
         given:
+        AGP_VERSIONS.assumeCurrentJavaVersionIsSupportedBy(agpVersion)
+
+        and:
         def abiChange = androidLibraryAndApplicationBuild(agpVersion)
 
         and:
@@ -81,11 +81,25 @@ class AndroidPluginsSmokeTest extends AbstractSmokeTest {
             assert !result.output.contains(JAVA_COMPILE_DEPRECATION_MESSAGE)
             if (agpBaseVersion == baseVersionNumberOf("3.6.4")) {
                 expectDeprecationWarnings(
-                    result,
-                    "Internal API constructor DefaultDomainObjectSet(Class<T>) has been deprecated. " +
-                        "This is scheduled to be removed in Gradle 7.0. Please use ObjectFactory.domainObjectSet(Class<T>) instead. " +
-                        "See https://docs.gradle.org/${GradleVersion.current().version}/userguide/custom_gradle_types.html#domainobjectset for more details."
+                        result,
+                        "Internal API constructor DefaultDomainObjectSet(Class<T>) has been deprecated. " +
+                                "This is scheduled to be removed in Gradle 8.0. Please use ObjectFactory.domainObjectSet(Class<T>) instead. " +
+                                "See https://docs.gradle.org/${GradleVersion.current().version}/userguide/custom_gradle_types.html#domainobjectset for more details.",
+                        "The WorkerExecutor.submit() method has been deprecated. " +
+                                "This is scheduled to be removed in Gradle 8.0. Please use the noIsolation(), classLoaderIsolation() or processIsolation() method instead. " +
+                                "See https://docs.gradle.org/${GradleVersion.current().version}/userguide/upgrading_version_5.html#method_workerexecutor_submit_is_deprecated for more details."
                 )
+            } else if (agpVersion.startsWith('4.0.2')) {
+                expectDeprecationWarnings(
+                        result,
+                        "The WorkerExecutor.submit() method has been deprecated. " +
+                                "This is scheduled to be removed in Gradle 8.0. Please use the noIsolation(), classLoaderIsolation() or processIsolation() method instead. " +
+                                "See https://docs.gradle.org/${GradleVersion.current().version}/userguide/upgrading_version_5.html#method_workerexecutor_submit_is_deprecated for more details."
+                )
+            } else if (agpVersion.startsWith('4.1')) {
+                expectDeprecationWarnings(result, "The WorkerExecutor.submit() method has been deprecated. " +
+                    "This is scheduled to be removed in Gradle 8.0. Please use the noIsolation(), classLoaderIsolation() or processIsolation() method instead. " +
+                    "See https://docs.gradle.org/${GradleVersion.current().version}/userguide/upgrading_version_5.html#method_workerexecutor_submit_is_deprecated for more details.")
             } else {
                 expectNoDeprecationWarnings(result)
             }
@@ -100,7 +114,10 @@ class AndroidPluginsSmokeTest extends AbstractSmokeTest {
         then:
         result.task(':app:compileDebugJavaWithJavac').outcome == TaskOutcome.UP_TO_DATE
         result.task(':library:assembleDebug').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':app:assembleDebug').outcome == TaskOutcome.UP_TO_DATE
+        // In AGP 3.4 and 3.5 some of the dependencies of `:app:assembleDebug` are invalid and are thus forced to re-execute every time
+        result.task(':app:assembleDebug').outcome == (VersionNumber.parse(agpVersion) < VersionNumber.parse("3.6.0")
+            ? TaskOutcome.SUCCESS
+            : TaskOutcome.UP_TO_DATE)
 
         and:
         assertConfigurationCacheStateLoaded()
@@ -213,7 +230,7 @@ class AndroidPluginsSmokeTest extends AbstractSmokeTest {
         appBuildFile << activityDependency()
         appBuildFile << """
             dependencies {
-                compile project(':${library}')
+                implementation project(':${library}')
             }
         """
 
@@ -232,7 +249,7 @@ class AndroidPluginsSmokeTest extends AbstractSmokeTest {
     private static String activityDependency() {
         """
             dependencies {
-                compile 'joda-time:joda-time:2.7'
+                implementation 'joda-time:joda-time:2.7'
             }
         """
     }

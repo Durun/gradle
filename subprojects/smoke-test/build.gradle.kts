@@ -1,18 +1,3 @@
-/*
- * Copyright 2019 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 import gradlebuild.basics.BuildEnvironment
 import gradlebuild.basics.accessors.groovy
 import gradlebuild.integrationtests.addDependenciesAndConfigurations
@@ -41,14 +26,18 @@ dependencies {
     smokeTestImplementation(project(":persistent-cache"))
     smokeTestImplementation(project(":jvm-services"))
     smokeTestImplementation(project(":build-option"))
+    smokeTestImplementation(project(":process-services"))
     smokeTestImplementation(libs.commonsIo)
+    smokeTestImplementation(libs.commonsHttpclient)
     smokeTestImplementation(libs.jgit)
     smokeTestImplementation(libs.gradleProfiler) {
         because("Using build mutators to change a Java file")
     }
     smokeTestImplementation(libs.spock)
+    smokeTestImplementation(libs.junitPlatform)
 
     smokeTestImplementation(testFixtures(project(":core")))
+    smokeTestImplementation(testFixtures(project(":plugin-development")))
     smokeTestImplementation(testFixtures(project(":version-control")))
 
     smokeTestDistributionRuntimeOnly(project(":distributions-full"))
@@ -67,7 +56,7 @@ tasks {
     val santaTrackerKotlin by registering(RemoteProject::class) {
         remoteUri.set(santaGitUri)
         // Pinned from branch agp-3.6.0
-        ref.set("3122343674246eaa56a5dd6365ea137edb021780")
+        ref.set("d23314d967e0eb025a12d28c98ddda2af235a513")
     }
 
     val santaTrackerJava by registering(RemoteProject::class) {
@@ -109,13 +98,15 @@ tasks {
             .withPathSensitivity(PathSensitivity.RELATIVE)
     }
 
-    val gradleBuildCategory = "org.gradle.smoketests.GradleBuild"
+    val gradleBuildTestPattern = "org.gradle.smoketests.GradleBuild*SmokeTest"
 
     register<SmokeTest>("smokeTest") {
         description = "Runs Smoke tests"
         configureForSmokeTest(*santaProjects)
-        useJUnit {
-            excludeCategories(gradleBuildCategory)
+        useJUnitPlatform {
+            filter {
+                excludeTestsMatching(gradleBuildTestPattern)
+            }
         }
     }
 
@@ -123,16 +114,20 @@ tasks {
         description = "Runs Smoke tests with the configuration cache"
         configureForSmokeTest(*santaProjects)
         systemProperty("org.gradle.integtest.executer", "configCache")
-        useJUnit {
-            excludeCategories(gradleBuildCategory)
+        useJUnitPlatform {
+            filter {
+                excludeTestsMatching(gradleBuildTestPattern)
+            }
         }
     }
 
     register<SmokeTest>("gradleBuildSmokeTest") {
         description = "Runs Smoke tests against the Gradle build"
         configureForSmokeTest(gradleBuildCurrent)
-        useJUnit {
-            includeCategories(gradleBuildCategory)
+        useJUnitPlatform {
+            filter {
+                includeTestsMatching(gradleBuildTestPattern)
+            }
         }
     }
 }

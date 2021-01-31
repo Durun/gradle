@@ -16,18 +16,15 @@
 
 package org.gradle.test.fixtures.server
 
-import java.util.concurrent.atomic.AtomicBoolean
+import groovy.transform.CompileStatic
 
-abstract class ExpectOne implements ServerExpectation {
-    AtomicBoolean atomicRun = new AtomicBoolean()
+@CompileStatic
+abstract class ExpectOne extends OneRequestServerExpectation {
 
-    boolean isRun() {
-        return atomicRun.get()
-    }
-
+    @Override
     void assertMet() {
         if (!run) {
-            throw new AssertionError(notMetMessage)
+            throw new AssertionError(notMetMessage as Object)
         }
     }
 

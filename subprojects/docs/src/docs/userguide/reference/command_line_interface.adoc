@@ -291,17 +291,6 @@ $ gradle -q api:properties
 include::{snippetsPath}/tutorial/projectReports/tests/propertyListReport.out[]
 ----
 
-=== Software Model reports
-
-You can get a hierarchical view of elements for <<software_model.adoc#software_model,software model>> projects using the `model` task:
-
-----
-$ gradle model
-----
-
-Learn more about <<software_model.adoc#model-report,the model report>> in the software model documentation.
-
-
 [[sec:command_line_completion]]
 == Command-line completion
 
@@ -365,8 +354,8 @@ image::gradle-core-test-build-scan-performance.png[Build Scan performance report
 
 `--watch-fs`, `--no-watch-fs`::
 Toggles <<gradle_daemon.adoc#sec:daemon_watch_fs,watching the file system>>.
-Allows Gradle to re-use information about the file system in the next build.
-_Default is off_.
+When enabled Gradle re-uses information it collects about the file system between builds.
+_Enabled by default on operating systems where Gradle supports this feature._
 
 === Gradle daemon options
 You can manage the <<gradle_daemon.adoc#gradle_daemon,Gradle Daemon>> through the following command line options.

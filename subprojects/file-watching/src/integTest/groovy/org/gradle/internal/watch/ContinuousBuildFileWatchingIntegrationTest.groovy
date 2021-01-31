@@ -23,22 +23,23 @@ import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
 import spock.lang.IgnoreIf
 
 @IgnoreIf({
-	GradleContextualExecuter.noDaemon || // There is no shared state without a daemon
-        GradleContextualExecuter.watchFs // The test manually enables file system watching
+	GradleContextualExecuter.noDaemon // There is no shared state without a daemon
 })
 class ContinuousBuildFileWatchingIntegrationTest extends AbstractContinuousIntegrationTest implements FileSystemWatchingFixture {
 
     def setup() {
         executer.requireIsolatedDaemons()
+    }
+
+    def "file system watching picks up changes causing a continuous build to rebuild"() {
+        given:
         // Do not drop the VFS in the first build, since there is only one continuous build invocation.
         // FileSystemWatchingFixture automatically sets the argument for the first build.
         executer.withArgument(FileSystemWatchingHelper.getDropVfsArgument(false))
         executer.beforeExecute {
             withWatchFs()
         }
-    }
 
-    def "file system watching picks up changes causing a continuous build to rebuild"() {
         def numberOfFilesInVfs = 4 // source file, class file, JAR manifest, JAR file
         def vfsLogs = enableVerboseVfsLogs()
 

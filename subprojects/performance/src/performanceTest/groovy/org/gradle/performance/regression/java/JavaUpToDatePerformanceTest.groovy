@@ -24,20 +24,20 @@ import org.gradle.profiler.mutations.AbstractCleanupMutator
 import org.gradle.profiler.mutations.ClearBuildCacheMutator
 import spock.lang.Unroll
 
-import static org.gradle.performance.annotations.ScenarioType.TEST
+import static org.gradle.performance.annotations.ScenarioType.PER_COMMIT
 import static org.gradle.performance.results.OperatingSystem.LINUX
 import static org.gradle.performance.results.OperatingSystem.WINDOWS
 
 class JavaUpToDatePerformanceTest extends AbstractCrossVersionPerformanceTest {
     @RunFor([
-        @Scenario(type = TEST, operatingSystems = [LINUX, WINDOWS], testProjects = ["largeJavaMultiProject"], iterationMatcher = '.*parallel true.*'),
-        @Scenario(type = TEST, operatingSystems = [LINUX], testProjects = ["largeJavaMultiProject", "largeMonolithicJavaProject"], iterationMatcher = '.*parallel false.*'),
+        @Scenario(type = PER_COMMIT, operatingSystems = [LINUX, WINDOWS], testProjects = ["largeJavaMultiProject"], iterationMatcher = '.*parallel true.*'),
+        @Scenario(type = PER_COMMIT, operatingSystems = [LINUX], testProjects = ["largeJavaMultiProject", "largeMonolithicJavaProject"], iterationMatcher = '.*parallel false.*'),
     ])
     @Unroll
     def "up-to-date assemble (parallel #parallel)"() {
         given:
         runner.tasksToRun = ['assemble']
-        runner.targetVersions = ["6.8-20201116230039+0000"]
+        runner.targetVersions = ["7.0-20210122131800+0000"]
         runner.args += ["-Dorg.gradle.parallel=$parallel"]
 
         when:
@@ -51,14 +51,14 @@ class JavaUpToDatePerformanceTest extends AbstractCrossVersionPerformanceTest {
     }
 
     @RunFor([
-        @Scenario(type = TEST, operatingSystems = [LINUX], testProjects = ["largeJavaMultiProject"], iterationMatcher = '.*parallel true.*'),
-        @Scenario(type = TEST, operatingSystems = [LINUX], testProjects = ["largeJavaMultiProject", "largeMonolithicJavaProject"], iterationMatcher = '.*parallel false.*'),
+        @Scenario(type = PER_COMMIT, operatingSystems = [LINUX], testProjects = ["largeJavaMultiProject"], iterationMatcher = '.*parallel true.*'),
+        @Scenario(type = PER_COMMIT, operatingSystems = [LINUX], testProjects = ["largeJavaMultiProject", "largeMonolithicJavaProject"], iterationMatcher = '.*parallel false.*'),
     ])
     @Unroll
     def "up-to-date assemble with local build cache enabled (parallel #parallel)"() {
         given:
         runner.tasksToRun = ['assemble']
-        runner.targetVersions = ["6.8-20201113131108+0000"]
+        runner.targetVersions = ["7.0-20210122131800+0000"]
         runner.minimumBaseVersion = "3.5"
         runner.args += ["-Dorg.gradle.parallel=$parallel", "-D${StartParameterBuildOptions.BuildCacheOption.GRADLE_PROPERTY}=true"]
         runner.addBuildMutator { invocationSettings ->

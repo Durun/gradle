@@ -17,8 +17,8 @@
 package org.gradle.jvm.toolchain;
 
 import org.gradle.api.Describable;
-import org.gradle.api.Incubating;
 import org.gradle.api.provider.Property;
+import org.gradle.internal.HasInternalProtocol;
 
 /**
  * Requirements for selecting a Java toolchain.
@@ -28,7 +28,7 @@ import org.gradle.api.provider.Property;
  *
  * @since 6.7
  */
-@Incubating
+@HasInternalProtocol
 public interface JavaToolchainSpec extends Describable {
 
     /**

@@ -64,6 +64,57 @@ class PrecompiledScriptPluginAccessorsTest : AbstractPrecompiledScriptPluginTest
 
     @Test
     @ToBeFixedForConfigurationCache
+    fun `cannot use type-safe accessors for extensions contributed in afterEvaluate`() {
+        withFolders {
+            "producer/src/main/kotlin" {
+                withFile(
+                    "producer.plugin.gradle.kts",
+                    """
+                        extensions.add("before", "before")
+                        afterEvaluate {
+                            extensions.add("after", "after")
+                        }
+                    """
+                )
+            }
+            "consumer/src/main/kotlin" {
+                withFile(
+                    "consumer.plugin.gradle.kts",
+                    """
+                        plugins { id("producer.plugin") }
+                        println(before) // ok
+                        println(after) // compilation error
+                    """
+                )
+            }
+        }
+        withDefaultSettings().appendText(
+            """
+                include("producer", "consumer")
+            """
+        )
+        withKotlinDslPlugin().appendText(
+            """
+                subprojects {
+                    apply(plugin = "org.gradle.kotlin.kotlin-dsl")
+                    $repositoriesBlock
+                }
+                project(":consumer") {
+                    dependencies {
+                        implementation(project(":producer"))
+                    }
+                }
+            """
+        )
+
+        buildAndFail("compileKotlin").apply {
+            assertHasCause("Compilation error.")
+            assertHasErrorOutput("Unresolved reference: after")
+        }
+    }
+
+    @Test
+    @ToBeFixedForConfigurationCache
     fun `generated type-safe accessors suppress deprecation warnings`() {
         // `java-gradle-plugin` adds deprecated task `ValidateTaskProperties`
         givenPrecompiledKotlinScript(
@@ -631,6 +682,23 @@ class PrecompiledScriptPluginAccessorsTest : AbstractPrecompiledScriptPluginTest
         gradleExecuterFor(arrayOf("classes")).withStackTraceChecksDisabled().run().apply {
             assertOutputContains("An exception occurred applying plugin request [id: '$pluginId']")
             assertOutputContains("'InvalidPlugin' is neither a plugin or a rule source and cannot be applied.")
+        }
+    }
+
+    @Test
+    @ToBeFixedForConfigurationCache
+    fun `plugin application errors can be made to fail the build via system property`() {
+
+        // given:
+        val pluginId = "invalid.plugin"
+        val pluginJar = jarWithInvalidPlugin(pluginId, "InvalidPlugin")
+
+        withPrecompiledScriptApplying(pluginId, pluginJar)
+
+        gradleExecuterFor(arrayOf("classes", "-Dorg.gradle.kotlin.dsl.precompiled.accessors.strict=true")).withStackTraceChecksDisabled().runWithFailure().apply {
+            assertHasFailure("An exception occurred applying plugin request [id: '$pluginId']") {
+                assertHasCause("'InvalidPlugin' is neither a plugin or a rule source and cannot be applied.")
+            }
         }
     }
 

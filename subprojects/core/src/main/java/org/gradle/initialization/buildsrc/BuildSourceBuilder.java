@@ -39,8 +39,6 @@ import org.gradle.internal.operations.CallableBuildOperation;
 import org.gradle.internal.service.scopes.Scopes;
 import org.gradle.internal.service.scopes.ServiceScope;
 import org.gradle.plugin.management.internal.PluginRequests;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 
@@ -49,7 +47,6 @@ import static org.gradle.cache.internal.filelock.LockOptionsBuilder.mode;
 
 @ServiceScope(Scopes.Build.class)
 public class BuildSourceBuilder {
-    private static final Logger LOGGER = LoggerFactory.getLogger(BuildSourceBuilder.class);
     private static final BuildBuildSrcBuildOperationType.Result BUILD_BUILDSRC_RESULT = new BuildBuildSrcBuildOperationType.Result() {
     };
 
@@ -80,15 +77,14 @@ public class BuildSourceBuilder {
     }
 
     private ClassPath createBuildSourceClasspath(File buildSrcDir, final StartParameter containingBuildParameters, ClassLoaderScope parentClassLoaderScope) {
-        if (!buildSrcDir.isDirectory()) {
-            LOGGER.debug("Gradle source dir does not exist. We leave.");
+        if (!BuildSrcDetector.isValidBuildSrcBuild(buildSrcDir)) {
             return ClassPath.EMPTY;
         }
 
-        final StartParameter buildSrcStartParameter = containingBuildParameters.newBuild();
+        final StartParameterInternal buildSrcStartParameter = (StartParameterInternal) containingBuildParameters.newBuild();
         buildSrcStartParameter.setCurrentDir(buildSrcDir);
         buildSrcStartParameter.setProjectProperties(containingBuildParameters.getProjectProperties());
-        ((StartParameterInternal) buildSrcStartParameter).setSearchUpwardsWithoutDeprecationWarning(false);
+        buildSrcStartParameter.doNotSearchUpwards();
         buildSrcStartParameter.setProfile(containingBuildParameters.isProfile());
         final BuildDefinition buildDefinition = BuildDefinition.fromStartParameterForBuild(
             buildSrcStartParameter,
@@ -96,7 +92,8 @@ public class BuildSourceBuilder {
             buildSrcDir,
             PluginRequests.EMPTY,
             Actions.doNothing(),
-            publicBuildPath
+            publicBuildPath,
+            true
         );
         assert buildSrcStartParameter.getBuildFile() == null;
 

@@ -27,6 +27,8 @@ import java.io.File;
 
 /**
  * <p>A {@link Plugin} which adds some project visualization report tasks to a project.</p>
+ *
+ * @see <a href="https://docs.gradle.org/current/userguide/project_report_plugin.html">Project Report plugin reference</a>
  */
 public class ProjectReportsPlugin implements Plugin<Project> {
     public static final String TASK_REPORT = "taskReport";
@@ -59,7 +61,7 @@ public class ProjectReportsPlugin implements Plugin<Project> {
             dependencyReportTask.conventionMapping("projects", convention::getProjects);
         });
 
-        project.getTasks().create(HTML_DEPENDENCY_REPORT, HtmlDependencyReportTask.class, htmlDependencyReportTask -> {
+        project.getTasks().register(HTML_DEPENDENCY_REPORT, HtmlDependencyReportTask.class, htmlDependencyReportTask -> {
             htmlDependencyReportTask.setDescription("Generates an HTML report about your library dependencies.");
             htmlDependencyReportTask.getReports().getHtml().getOutputLocation().convention(project.getLayout().getProjectDirectory().dir(project.provider(() -> new File(convention.getProjectReportDir(), "dependencies").getAbsolutePath())));
             htmlDependencyReportTask.conventionMapping("projects", convention::getProjects);

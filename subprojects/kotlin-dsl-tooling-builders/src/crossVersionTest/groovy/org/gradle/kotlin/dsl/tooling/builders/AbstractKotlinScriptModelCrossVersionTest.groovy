@@ -89,7 +89,7 @@ abstract class AbstractKotlinScriptModelCrossVersionTest extends ToolingApiSpeci
         return targetKotlinVersion
     }
 
-    private static String loadTargetDistKotlinVersion() {
+    private String loadTargetDistKotlinVersion() {
         def props = new JarTestFixture(targetDist.gradleHomeDir.file("lib").listFiles().find {
             it.name.startsWith("gradle-kotlin-dsl-${targetVersion.baseVersion.version}")
         }).content("gradle-kotlin-dsl-versions.properties")
@@ -167,7 +167,7 @@ abstract class AbstractKotlinScriptModelCrossVersionTest extends ToolingApiSpeci
 
             dependencies {
                 kotlinDslProjects.forEach {
-                    "runtime"(project(it.path))
+                    "runtimeOnly"(project(it.path))
                 }
             }
 

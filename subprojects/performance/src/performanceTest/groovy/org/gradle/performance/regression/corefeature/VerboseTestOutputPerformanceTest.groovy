@@ -20,11 +20,11 @@ import org.gradle.performance.AbstractCrossVersionPerformanceTest
 import org.gradle.performance.annotations.RunFor
 import org.gradle.performance.annotations.Scenario
 
-import static org.gradle.performance.annotations.ScenarioType.TEST
+import static org.gradle.performance.annotations.ScenarioType.PER_DAY
 import static org.gradle.performance.results.OperatingSystem.LINUX
 
 @RunFor(
-    @Scenario(type = TEST, operatingSystems = [LINUX], testProjects = ["withVerboseTestNG", "withVerboseJUnit"])
+    @Scenario(type = PER_DAY, operatingSystems = [LINUX], testProjects = ["withVerboseTestNG", "withVerboseJUnit"])
 )
 class VerboseTestOutputPerformanceTest extends AbstractCrossVersionPerformanceTest {
 
@@ -32,7 +32,7 @@ class VerboseTestOutputPerformanceTest extends AbstractCrossVersionPerformanceTe
         given:
         runner.tasksToRun = ['cleanTest', 'test']
         runner.args = ['-q']
-        runner.targetVersions = ["6.8.2-20210128010010+0000"]
+        runner.targetVersions = ["7.0-20210122131800+0000"]
 
         when:
         def result = runner.run()

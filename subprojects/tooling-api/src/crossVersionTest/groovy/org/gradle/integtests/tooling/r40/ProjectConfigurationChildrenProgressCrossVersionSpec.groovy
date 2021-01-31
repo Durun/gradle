@@ -25,17 +25,40 @@ import org.gradle.test.fixtures.server.http.MavenHttpRepository
 import org.gradle.test.fixtures.server.http.RepositoryHttpServer
 import org.gradle.tooling.ProjectConnection
 import org.gradle.util.GradleVersion
-import org.junit.Rule
 
 @IntegrationTestTimeout(300)
 @TargetGradleVersion('>=4.0')
 class ProjectConfigurationChildrenProgressCrossVersionSpec extends AbstractProgressCrossVersionSpec {
 
-    @Rule
-    public final RepositoryHttpServer server = new RepositoryHttpServer(temporaryFolder, targetDist.version.version)
+    private RepositoryHttpServer server
 
-    private static String expectedDisplayName(String name, String extension, String version) {
+    def setup() {
+        server = new RepositoryHttpServer(temporaryFolder, targetDist.version.version)
+        server.before()
+    }
+
+    def cleanup() {
+        server.after()
+    }
+
+    private String expectedDisplayName(String name, String extension, String version) {
         getTargetVersion() < GradleVersion.version("6.0") ? "$name.$extension" : "$name-$version.$extension"
+    }
+
+    private String workerActionClass(String name) {
+        if (getTargetVersion() < GradleVersion.version("6.0")) {
+            "class ${name}WorkAction implements Runnable { public void run() { } }"
+        } else {
+            "abstract class ${name}WorkAction implements WorkAction<WorkParameters.None> { public void execute() { } }"
+        }
+    }
+
+    private String workerSubmit(String actionName) {
+        if (getTargetVersion() < GradleVersion.version("6.0")) {
+            "workerExecutor.submit(${actionName}WorkAction) { c -> c.isolationMode = IsolationMode.${actionName == 'Forked' ? 'PROCESS' : 'NONE'} }"
+        } else {
+            "workerExecutor.${actionName == 'Forked' ? 'process' : 'no'}Isolation().submit(${actionName}WorkAction) { }"
+        }
     }
 
     def "generates events for worker actions executed in-process and forked"() {
@@ -43,43 +66,20 @@ class ProjectConfigurationChildrenProgressCrossVersionSpec extends AbstractProgr
         settingsFile << "rootProject.name = 'single'"
         buildFile << """
             import org.gradle.workers.*
-            import java.net.URLClassLoader
-            import java.net.URL
-            import org.gradle.internal.classloader.ClasspathUtil
 
-            class TestRunnable implements Runnable {
-                @Override public void run() {
-                    // Do nothing
-                }
-            }
-
-            // Set up a simpler classloader that only contains what TestRunnable needs.
-            // This can be removed when the issues with long classpaths have been resolved.
-            // See https://github.com/gradle/gradle-private/issues/1486
-            ClassLoader cl = new URLClassLoader(
-                ClasspathUtil.getClasspath(TestRunnable.class.classLoader).asURLs.findAll { url ->
-                    ["scripts-remapped", "proj.jar", "groovy-all"].any { url.toString().contains(it) }
-                } as URL[]
-            )
-
-            def testRunnable = cl.loadClass("TestRunnable")
+            ${workerActionClass('InProcess')}
+            ${workerActionClass('Forked')}
 
             task runInProcess {
                 doLast {
                     def workerExecutor = services.get(WorkerExecutor)
-                    workerExecutor.submit(testRunnable) { config ->
-                        config.isolationMode = IsolationMode.NONE
-                        config.displayName = 'My in-process worker action'
-                    }
+                    ${workerSubmit('InProcess')}
                 }
             }
             task runForked {
                 doLast {
                     def workerExecutor = services.get(WorkerExecutor)
-                    workerExecutor.submit(testRunnable) { config ->
-                        config.isolationMode = IsolationMode.PROCESS
-                        config.displayName = 'My forked worker action'
-                    }
+                    ${workerSubmit('Forked')}
                 }
             }
         """.stripIndent()
@@ -99,8 +99,8 @@ class ProjectConfigurationChildrenProgressCrossVersionSpec extends AbstractProgr
         events.assertIsABuild()
 
         and:
-        events.operation('Task :runInProcess').descendant('My in-process worker action')
-        events.operation('Task :runForked').descendant('My forked worker action')
+        events.operation('Task :runInProcess').descendant('InProcessWorkAction')
+        events.operation('Task :runForked').descendant('ForkedWorkAction')
     }
 
     def "does not generate events for non-existing build scripts"() {

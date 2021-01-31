@@ -32,6 +32,7 @@ import org.gradle.internal.buildoption.IntegerBuildOption;
 import org.gradle.internal.buildoption.ListBuildOption;
 import org.gradle.internal.buildoption.Origin;
 import org.gradle.internal.buildoption.StringBuildOption;
+import org.gradle.internal.watch.vfs.WatchMode;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -64,7 +65,6 @@ public class StartParameterBuildOptions extends BuildOptionSet<StartParameterInt
         options.add(new BuildCacheDebugLoggingOption());
         options.add(new WatchFileSystemOption());
         options.add(new WatchFileSystemDebugLoggingOption());
-        options.add(new DeprecatedWatchFileSystemOption());
         options.add(new VfsVerboseLoggingOption());
         options.add(new BuildScanOption());
         options.add(new DependencyLockingWriteOption());
@@ -309,22 +309,10 @@ public class StartParameterBuildOptions extends BuildOptionSet<StartParameterInt
 
         @Override
         public void applyTo(boolean value, StartParameterInternal startParameter, Origin origin) {
-            startParameter.setWatchFileSystem(value);
-        }
-    }
-
-    @Deprecated
-    public static class DeprecatedWatchFileSystemOption extends BooleanBuildOption<StartParameterInternal> {
-        public static final String GRADLE_PROPERTY = "org.gradle.unsafe.watch-fs";
-
-        public DeprecatedWatchFileSystemOption() {
-            super(GRADLE_PROPERTY);
-        }
-
-        @Override
-        public void applyTo(boolean value, StartParameterInternal startParameter, Origin origin) {
-            startParameter.setWatchFileSystem(value);
-            startParameter.setWatchFileSystemUsingDeprecatedOption(true);
+            startParameter.setWatchFileSystemMode(value
+                ? WatchMode.ENABLED
+                : WatchMode.DISABLED
+            );
         }
     }
 
@@ -375,7 +363,7 @@ public class StartParameterBuildOptions extends BuildOptionSet<StartParameterInt
         public static final String LONG_OPTION = "write-locks";
 
         public DependencyLockingWriteOption() {
-            super(null, CommandLineOptionConfiguration.create(LONG_OPTION, "Persists dependency resolution for locked configurations, ignoring existing locking information if it exists").incubating());
+            super(null, CommandLineOptionConfiguration.create(LONG_OPTION, "Persists dependency resolution for locked configurations, ignoring existing locking information if it exists"));
         }
 
         @Override
@@ -390,7 +378,7 @@ public class StartParameterBuildOptions extends BuildOptionSet<StartParameterInt
 
         DependencyVerificationWriteOption() {
             super(null, CommandLineOptionConfiguration.create(LONG_OPTION, SHORT_OPTION,
-                "Generates checksums for dependencies used in the project (comma-separated list)").incubating());
+                "Generates checksums for dependencies used in the project (comma-separated list)"));
         }
 
         @Override
@@ -418,7 +406,7 @@ public class StartParameterBuildOptions extends BuildOptionSet<StartParameterInt
                 DependencyVerificationMode.values(),
                 GRADLE_PROPERTY,
                 CommandLineOptionConfiguration.create(
-                    LONG_OPTION, SHORT_OPTION, "Configures the dependency verification mode (strict, lenient or off)").incubating()
+                    LONG_OPTION, SHORT_OPTION, "Configures the dependency verification mode (strict, lenient or off)")
             );
         }
 
@@ -446,7 +434,7 @@ public class StartParameterBuildOptions extends BuildOptionSet<StartParameterInt
 
         public RefreshKeysOption() {
             super(null,
-                CommandLineOptionConfiguration.create(LONG_OPTION, "Refresh the public keys used for dependency verification.").incubating());
+                CommandLineOptionConfiguration.create(LONG_OPTION, "Refresh the public keys used for dependency verification."));
         }
 
         @Override
@@ -461,7 +449,7 @@ public class StartParameterBuildOptions extends BuildOptionSet<StartParameterInt
 
         public ExportKeysOption() {
             super(null,
-                CommandLineOptionConfiguration.create(LONG_OPTION, "Exports the public keys used for dependency verification.").incubating());
+                CommandLineOptionConfiguration.create(LONG_OPTION, "Exports the public keys used for dependency verification."));
         }
 
         @Override

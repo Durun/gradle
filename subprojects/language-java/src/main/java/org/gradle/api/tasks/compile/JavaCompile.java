@@ -20,14 +20,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multimap;
 import org.gradle.api.Incubating;
 import org.gradle.api.JavaVersion;
-import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.internal.file.FileOperations;
 import org.gradle.api.internal.file.FileTreeInternal;
 import org.gradle.api.internal.file.TemporaryFileProvider;
-import org.gradle.api.internal.tasks.JavaToolChainFactory;
 import org.gradle.api.internal.tasks.compile.CleaningJavaCompiler;
 import org.gradle.api.internal.tasks.compile.CommandLineJavaCompileSpec;
 import org.gradle.api.internal.tasks.compile.CompilationSourceDirs;
@@ -47,11 +45,12 @@ import org.gradle.api.jvm.ModularitySpec;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.model.ReplacedBy;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.LocalState;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.Optional;
@@ -60,21 +59,20 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.WorkResult;
-import org.gradle.internal.deprecation.DeprecationLogger;
 import org.gradle.internal.file.Deleter;
 import org.gradle.internal.jvm.DefaultModularitySpec;
 import org.gradle.internal.jvm.JavaModuleDetector;
 import org.gradle.internal.operations.BuildOperationExecutor;
-import org.gradle.jvm.internal.toolchain.JavaToolChainInternal;
-import org.gradle.jvm.platform.JavaPlatform;
-import org.gradle.jvm.platform.internal.DefaultJavaPlatform;
 import org.gradle.jvm.toolchain.JavaCompiler;
 import org.gradle.jvm.toolchain.JavaInstallationMetadata;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
-import org.gradle.jvm.toolchain.JavaToolChain;
+import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JavaToolchainSpec;
+import org.gradle.jvm.toolchain.internal.CurrentJvmToolchainSpec;
 import org.gradle.jvm.toolchain.internal.DefaultToolchainJavaCompiler;
+import org.gradle.jvm.toolchain.internal.SpecificInstallationToolchainSpec;
+import org.gradle.language.base.internal.compile.CompileSpec;
 import org.gradle.language.base.internal.compile.Compiler;
-import org.gradle.language.base.internal.compile.CompilerUtil;
 import org.gradle.work.Incremental;
 import org.gradle.work.InputChanges;
 
@@ -105,20 +103,19 @@ import static org.gradle.api.internal.tasks.compile.SourceClassesMappingFileAcce
 @CacheableTask
 public class JavaCompile extends AbstractCompile implements HasCompileOptions {
     private final CompileOptions compileOptions;
-    private JavaToolChain toolChain;
-    private final FileCollection stableSources = getProject().files((Callable<Object[]>) () -> new Object[]{getSource(), getSources()});
+    private final FileCollection stableSources = getProject().files((Callable<FileTree>) this::getSource);
     private final ModularitySpec modularity;
     private File sourceClassesMappingFile;
     private final Property<JavaCompiler> javaCompiler;
+    private final ObjectFactory objectFactory;
 
     public JavaCompile() {
-        Project project = getProject();
-        ObjectFactory objectFactory = project.getObjects();
+        objectFactory = getProject().getObjects();
         compileOptions = objectFactory.newInstance(CompileOptions.class);
-        CompilerForkUtils.doNotCacheIfForkingViaExecutable(compileOptions, getOutputs());
         modularity = objectFactory.newInstance(DefaultModularitySpec.class);
         javaCompiler = objectFactory.property(JavaCompiler.class);
         javaCompiler.finalizeValueOnRead();
+        CompilerForkUtils.doNotCacheIfForkingViaExecutable(compileOptions, getOutputs());
     }
 
     /**
@@ -131,49 +128,11 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
     }
 
     /**
-     * This method is overwritten by the Android plugin &lt; 3.6.
-     * We add it here as hack so we can add the source from that method to stableSources.
-     * DO NOT USE!
-     *
-     * @since 6.0
-     */
-    @Deprecated
-    @Internal
-    protected FileTree getSources() {
-        return getProjectLayout().files().getAsFileTree();
-    }
-
-    /**
-     * Returns the tool chain that will be used to compile the Java source.
-     *
-     * @return The tool chain.
-     */
-    @Nested
-    @Deprecated
-    public JavaToolChain getToolChain() {
-        if (toolChain != null) {
-            return toolChain;
-        }
-        return getJavaToolChainFactory().forCompileOptions(getOptions());
-    }
-
-    /**
-     * Sets the tool chain that should be used to compile the Java source.
-     *
-     * @param toolChain The tool chain.
-     */
-    @Deprecated
-    public void setToolChain(JavaToolChain toolChain) {
-        this.toolChain = toolChain;
-    }
-
-    /**
      * Configures the java compiler to be used to compile the Java source.
      *
      * @see org.gradle.jvm.toolchain.JavaToolchainSpec
      * @since 6.7
      */
-    @Incubating
     @Nested
     @Optional
     public Property<JavaCompiler> getJavaCompiler() {
@@ -183,25 +142,8 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
     /**
      * Compile the sources, taking into account the changes reported by inputs.
      *
-     * @deprecated Left for backwards compatibility.
-     */
-    @Deprecated
-    @TaskAction
-    protected void compile(@SuppressWarnings("deprecation") org.gradle.api.tasks.incremental.IncrementalTaskInputs inputs) {
-        DeprecationLogger.deprecate("Extending the JavaCompile task")
-            .withAdvice("Configure the task instead.")
-            .willBeRemovedInGradle7()
-            .undocumented()
-            .nagUser();
-        compile((InputChanges) inputs);
-    }
-
-    /**
-     * Compile the sources, taking into account the changes reported by inputs.
-     *
      * @since 6.0
      */
-    @Incubating
     @TaskAction
     protected void compile(InputChanges inputs) {
         DefaultJavaCompileSpec spec = createSpec();
@@ -214,7 +156,6 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
 
     private void validateConfiguration() {
         if (javaCompiler.isPresent()) {
-            checkState(toolChain == null, "Must not use `javaCompiler` property together with (deprecated) `toolchain`");
             checkState(getOptions().getForkOptions().getJavaHome() == null, "Must not use `javaHome` property on `ForkOptions` together with `javaCompiler` property");
             checkState(getOptions().getForkOptions().getExecutable() == null, "Must not use `exectuable` property on `ForkOptions` together with `javaCompiler` property");
         }
@@ -234,7 +175,7 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
         }
         sourceClassesMappingFile.delete();
         spec.getCompileOptions().setIncrementalCompilationMappingFile(sourceClassesMappingFile);
-        Compiler<JavaCompileSpec> compiler = createCompiler(spec);
+        Compiler<JavaCompileSpec> compiler = createCompiler();
         compiler = makeIncremental(inputs, sourceFileClassNameConverter, (CleaningJavaCompiler<JavaCompileSpec>) compiler, getStableSources().getAsFileTree());
         WorkResult workResult = performCompilation(spec, compiler);
         if (workResult instanceof IncrementalCompilationResult && !isUsingCliCompiler) {
@@ -270,7 +211,7 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
     private void performFullCompilation(DefaultJavaCompileSpec spec) {
         Compiler<JavaCompileSpec> compiler;
         spec.setSourceFiles(getStableSources());
-        compiler = createCompiler(spec);
+        compiler = createCompiler();
         performCompilation(spec, compiler);
     }
 
@@ -285,11 +226,6 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
     }
 
     @Inject
-    protected JavaToolChainFactory getJavaToolChainFactory() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Inject
     protected Deleter getDeleter() {
         throw new UnsupportedOperationException("Decorator takes care of injection");
     }
@@ -299,30 +235,51 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
         throw new UnsupportedOperationException();
     }
 
-    CleaningJavaCompiler<JavaCompileSpec> createCompiler(JavaCompileSpec spec) {
-        Compiler<JavaCompileSpec> javaCompiler = createToolchainCompiler(spec);
+    @Inject
+    protected JavaToolchainService getJavaToolchainService() {
+        throw new UnsupportedOperationException();
+    }
+
+    CleaningJavaCompiler<JavaCompileSpec> createCompiler() {
+        Compiler<JavaCompileSpec> javaCompiler = createToolchainCompiler();
         return new CleaningJavaCompiler<>(javaCompiler, getOutputs(), getDeleter());
     }
 
-    private Compiler<JavaCompileSpec> createToolchainCompiler(JavaCompileSpec spec) {
-        if (javaCompiler.isPresent()) {
-            return useNewToolchainCompiler();
+    private <T extends CompileSpec> Compiler<T> createToolchainCompiler() {
+        return spec -> {
+            final Provider<JavaCompiler> compilerProvider = getCompilerTool();
+            final DefaultToolchainJavaCompiler compiler = (DefaultToolchainJavaCompiler) compilerProvider.get();
+            return compiler.execute(spec);
+        };
+    }
+
+    private Provider<JavaCompiler> getCompilerTool() {
+        JavaToolchainSpec explicitToolchain = determineExplicitToolchain();
+        if(explicitToolchain == null) {
+            if(javaCompiler.isPresent()) {
+                return this.javaCompiler;
+            } else {
+                explicitToolchain = new CurrentJvmToolchainSpec(objectFactory);
+            }
         }
-        return legacyCompiler(spec);
+        return getJavaToolchainService().compilerFor(explicitToolchain);
     }
 
-    private Compiler<JavaCompileSpec> useNewToolchainCompiler() {
-        return spec -> ((DefaultToolchainJavaCompiler) javaCompiler.get()).execute(spec);
-    }
-
-    private Compiler<JavaCompileSpec> legacyCompiler(JavaCompileSpec spec) {
-        return CompilerUtil.castCompiler(((JavaToolChainInternal) getToolChain()).select(getPlatform()).newCompiler(spec.getClass()));
-    }
-
-    @Nested
-    @Deprecated
-    protected JavaPlatform getPlatform() {
-        return new DefaultJavaPlatform(JavaVersion.toVersion(getTargetCompatibility()));
+    @Nullable
+    private JavaToolchainSpec determineExplicitToolchain() {
+        final File customJavaHome = getOptions().getForkOptions().getJavaHome();
+        if (customJavaHome != null) {
+            return new SpecificInstallationToolchainSpec(objectFactory, customJavaHome);
+        } else {
+            final String customExecutable = getOptions().getForkOptions().getExecutable();
+            if (customExecutable != null) {
+                final File executable = new File(customExecutable);
+                if(executable.exists()) {
+                    return new SpecificInstallationToolchainSpec(objectFactory, executable.getParentFile().getParentFile());
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -352,6 +309,7 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
         List<File> sourcesRoots = CompilationSourceDirs.inferSourceRoots((FileTreeInternal) getStableSources().getAsFileTree());
         JavaModuleDetector javaModuleDetector = getJavaModuleDetector();
         boolean isModule = JavaModuleDetector.isModuleSource(modularity.getInferModulePath().get(), sourcesRoots);
+        boolean toolchainCompatibleWithJava8 = isToolchainCompatibleWithJava8();
 
         final DefaultJavaCompileSpec spec = createBaseSpec();
 
@@ -366,17 +324,20 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
         spec.setAnnotationProcessorPath(compileOptions.getAnnotationProcessorPath() == null ? ImmutableList.of() : ImmutableList.copyOf(compileOptions.getAnnotationProcessorPath()));
         configureCompatibilityOptions(spec);
         spec.setSourcesRoots(sourcesRoots);
-        if (!isToolchainCompatibleWithJava8()) {
+
+        if (!toolchainCompatibleWithJava8) {
             spec.getCompileOptions().setHeaderOutputDirectory(null);
         }
         return spec;
     }
 
     private boolean isToolchainCompatibleWithJava8() {
-        if (javaCompiler.isPresent()) {
-            return getToolchain().getLanguageVersion().canCompileOrRun(8);
-        }
-        return ((JavaToolChainInternal) getToolChain()).getJavaVersion().isJava8Compatible();
+        return getCompilerTool().get().getMetadata().getLanguageVersion().canCompileOrRun(8);
+    }
+
+    @Input
+    JavaVersion getJavaVersion() {
+        return JavaVersion.toVersion(getCompilerTool().get().getMetadata().getLanguageVersion().asInt());
     }
 
     private DefaultJavaCompileSpec createBaseSpec() {
@@ -437,7 +398,6 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
      *
      * @since 6.4
      */
-    @Incubating
     @Nested
     public ModularitySpec getModularity() {
         return modularity;
@@ -465,7 +425,6 @@ public class JavaCompile extends AbstractCompile implements HasCompileOptions {
      *
      * @since 6.0
      */
-    @Incubating
     @SkipWhenEmpty
     @IgnoreEmptyDirectories
     @PathSensitive(PathSensitivity.RELATIVE)

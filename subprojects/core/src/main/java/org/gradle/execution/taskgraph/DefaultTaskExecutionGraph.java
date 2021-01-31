@@ -38,13 +38,11 @@ import org.gradle.configuration.internal.ListenerBuildOperationDecorator;
 import org.gradle.execution.ProjectExecutionServiceRegistry;
 import org.gradle.execution.TaskSelection;
 import org.gradle.execution.TaskSelector;
-import org.gradle.execution.plan.DefaultExecutionPlan;
+import org.gradle.execution.plan.ExecutionPlan;
 import org.gradle.execution.plan.Node;
 import org.gradle.execution.plan.NodeExecutor;
 import org.gradle.execution.plan.PlanExecutor;
-import org.gradle.execution.plan.TaskDependencyResolver;
 import org.gradle.execution.plan.TaskNode;
-import org.gradle.execution.plan.TaskNodeFactory;
 import org.gradle.internal.Cast;
 import org.gradle.internal.event.ListenerBroadcast;
 import org.gradle.internal.operations.BuildOperationContext;
@@ -86,7 +84,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
     private final BuildScopeListenerRegistrationListener buildScopeListenerRegistrationListener;
     private final ProjectStateRegistry projectStateRegistry;
     private final ServiceRegistry globalServices;
-    private final DefaultExecutionPlan executionPlan;
+    private final ExecutionPlan executionPlan;
     private final BuildOperationExecutor buildOperationExecutor;
     private final ListenerBuildOperationDecorator listenerBuildOperationDecorator;
     private final TaskSelector taskSelector;
@@ -103,8 +101,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
         ListenerBuildOperationDecorator listenerBuildOperationDecorator,
         ResourceLockCoordinationService coordinationService,
         GradleInternal gradleInternal,
-        TaskNodeFactory taskNodeFactory,
-        TaskDependencyResolver dependencyResolver,
+        ExecutionPlan executionPlan,
         ListenerBroadcast<TaskExecutionGraphListener> graphListeners,
         ListenerBroadcast<TaskExecutionListener> taskListeners,
         BuildScopeListenerRegistrationListener buildScopeListenerRegistrationListener,
@@ -123,7 +120,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
         this.buildScopeListenerRegistrationListener = buildScopeListenerRegistrationListener;
         this.projectStateRegistry = projectStateRegistry;
         this.globalServices = globalServices;
-        this.executionPlan = new DefaultExecutionPlan(gradleInternal, taskNodeFactory, dependencyResolver);
+        this.executionPlan = executionPlan;
         this.taskSelector = taskSelector;
     }
 
@@ -160,7 +157,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
         executionPlan.addEntryTasks(taskSet);
         graphState = GraphState.DIRTY;
 
-        LOGGER.debug("Timing: Creating the DAG took " + clock.getElapsed());
+        LOGGER.debug("Timing: Creating the DAG took {}", clock.getElapsed());
     }
 
     @Override
@@ -176,7 +173,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
             fireWhenReady();
             hasFiredWhenReady = true;
         } else if (!graphListeners.isEmpty()) {
-            LOGGER.info("Ignoring listeners of task graph ready event, as this build (" + gradleInternal.getIdentityPath() + ") has already executed work.");
+            LOGGER.info("Ignoring listeners of task graph ready event, as this build ({}) has already executed work.", gradleInternal.getIdentityPath());
         }
     }
 
@@ -201,7 +198,7 @@ public class DefaultTaskExecutionGraph implements TaskExecutionGraphInternal {
                     new InvokeNodeExecutorsAction(nodeExecutors, projectExecutionServices)
                 )
             );
-            LOGGER.debug("Timing: Executing the DAG took " + clock.getElapsed());
+            LOGGER.debug("Timing: Executing the DAG took {}", clock.getElapsed());
         } finally {
             coordinationService.withStateLock(resourceLockState -> {
                 executionPlan.clear();

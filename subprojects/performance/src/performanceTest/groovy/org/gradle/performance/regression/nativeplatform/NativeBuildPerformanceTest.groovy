@@ -22,16 +22,18 @@ import org.gradle.performance.annotations.Scenario
 import org.gradle.profiler.mutations.ApplyChangeToNativeSourceFileMutator
 import spock.lang.Unroll
 
-import static org.gradle.performance.annotations.ScenarioType.TEST
+import static org.gradle.performance.annotations.ScenarioType.PER_COMMIT
+import static org.gradle.performance.annotations.ScenarioType.PER_DAY
 import static org.gradle.performance.results.OperatingSystem.LINUX
 
-@RunFor(
-    @Scenario(type = TEST, operatingSystems = [LINUX], testProjects = ["bigCppApp", "bigCppMulti"])
-)
+@RunFor([
+    @Scenario(type = PER_COMMIT, operatingSystems = [LINUX], testProjects = ["bigCppMulti"]),
+    @Scenario(type = PER_DAY, operatingSystems = [LINUX], testProjects = ["bigCppApp"])
+])
 class NativeBuildPerformanceTest extends AbstractCrossVersionPerformanceTest {
     def setup() {
         runner.minimumBaseVersion = '4.1' // minimum version that contains new C++ plugins
-        runner.targetVersions = ["6.8-20201115230028+0000"]
+        runner.targetVersions = ["7.0-20210122131800+0000"]
     }
 
     def "up-to-date assemble (native)"() {

@@ -74,6 +74,8 @@ import java.util.concurrent.Callable;
 /**
  * Adds a GenerateIdeaModule task. When applied to a root project, also adds a GenerateIdeaProject task. For projects that have the Java plugin applied, the tasks receive additional Java-specific
  * configuration.
+ *
+ * @see <a href="https://docs.gradle.org/current/userguide/idea_plugin.html">IDEA plugin reference</a>
  */
 public class IdeaPlugin extends IdePlugin {
     private static final Predicate<Project> HAS_IDEA_AND_JAVA_PLUGINS = new Predicate<Project>() {
@@ -477,21 +479,12 @@ public class IdeaPlugin extends IdePlugin {
         return !moduleLanguageLevel.equals(ideaProject.getLanguageLevel());
     }
 
-
-    @SuppressWarnings("deprecation")
     private void configureForScalaPlugin() {
         project.getPlugins().withType(ScalaBasePlugin.class, new Action<ScalaBasePlugin>() {
             @Override
             public void execute(ScalaBasePlugin scalaBasePlugin) {
                 ideaModuleDependsOnRoot();
             }
-        });
-        project.getPlugins().withType(org.gradle.language.scala.plugins.ScalaLanguagePlugin.class, new Action<org.gradle.language.scala.plugins.ScalaLanguagePlugin>() {
-            @Override
-            public void execute(org.gradle.language.scala.plugins.ScalaLanguagePlugin scalaLanguagePlugin) {
-                ideaModuleDependsOnRoot();
-            }
-
         });
         if (isRoot()) {
             new IdeaScalaConfigurer(project).configure();

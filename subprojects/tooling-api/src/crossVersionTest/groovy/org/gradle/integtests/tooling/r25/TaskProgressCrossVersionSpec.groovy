@@ -20,6 +20,7 @@ package org.gradle.integtests.tooling.r25
 import org.gradle.integtests.tooling.fixture.ProgressEvents
 import org.gradle.integtests.tooling.fixture.TargetGradleVersion
 import org.gradle.integtests.tooling.fixture.ToolingApiSpecification
+import org.gradle.integtests.tooling.fixture.WithOldConfigurationsSupport
 import org.gradle.test.fixtures.server.http.BlockingHttpServer
 import org.gradle.tooling.BuildException
 import org.gradle.tooling.ListenerFailedException
@@ -32,7 +33,7 @@ import org.gradle.tooling.model.gradle.BuildInvocations
 import org.gradle.util.GradleVersion
 import org.junit.Rule
 
-class TaskProgressCrossVersionSpec extends ToolingApiSpecification {
+class TaskProgressCrossVersionSpec extends ToolingApiSpecification implements WithOldConfigurationsSupport {
     @Rule BlockingHttpServer server = new BlockingHttpServer()
 
     def "receive task progress events when requesting a model"() {
@@ -148,7 +149,7 @@ class TaskProgressCrossVersionSpec extends ToolingApiSpecification {
         buildFile << """
             apply plugin: 'java'
             ${mavenCentralRepository()}
-            dependencies { testCompile 'junit:junit:4.13' }
+            dependencies { ${testImplementationConfiguration} 'junit:junit:4.13' }
             compileTestJava.options.fork = true  // forked as 'Gradle Test Executor 1'
         """
 
@@ -221,36 +222,15 @@ class TaskProgressCrossVersionSpec extends ToolingApiSpecification {
         server.stop()
     }
 
-
     @TargetGradleVersion(">=3.6")
     def "receive task progress events when tasks are executed in parallel (with async work)"() {
         given:
         server.start()
         buildFile << """
             import org.gradle.workers.WorkerExecutor
-            import org.gradle.workers.IsolationMode
             import javax.inject.Inject
 
-            class TestRunnable implements Runnable {
-                String name
-
-                @Inject
-                public TestRunnable(String name) { this.name = name }
-
-                public void run() {
-                    ${server.callFromBuildUsingExpression('name')}
-                }
-            }
-
-            class ParTask extends DefaultTask {
-                @TaskAction zzz() {
-                    services.get(WorkerExecutor.class).submit(TestRunnable) {
-                        it.isolationMode = IsolationMode.NONE
-                        it.displayName = "Test \$path"
-                        it.params = [ name ]
-                    }
-                }
-            }
+            ${targetVersion < GradleVersion.version("6.0") ? defineGradle3WorkerRunnable() : defineGradleWorkAction()}
 
             task para1(type:ParTask)
             task para2(type:ParTask)
@@ -280,6 +260,52 @@ class TaskProgressCrossVersionSpec extends ToolingApiSpecification {
 
         cleanup:
         server.stop()
+    }
+
+    private defineGradle3WorkerRunnable() {
+        """
+        class TestRunnable implements Runnable {
+            String name
+
+            @Inject
+            public TestRunnable(String name) { this.name = name }
+
+            public void run() {
+                ${server.callFromBuildUsingExpression('name')}
+            }
+        }
+
+        class ParTask extends DefaultTask {
+            @TaskAction zzz() {
+                services.get(WorkerExecutor.class).submit(TestRunnable) {
+                    it.isolationMode = org.gradle.workers.IsolationMode.NONE
+                    it.params = [ name ]
+                }
+            }
+        }
+        """
+    }
+
+    private defineGradleWorkAction() {
+        """
+        interface WorkActionParams extends WorkParameters {
+            Property<String> getName()
+        }
+        abstract class TestWorkAction implements WorkAction<WorkActionParams> {
+            public void execute() {
+                ${server.callFromBuildUsingExpression('parameters.name.get()')}
+            }
+        }
+
+        class ParTask extends DefaultTask {
+            @TaskAction zzz() {
+                def taskName = name
+                services.get(WorkerExecutor.class).noIsolation().submit(TestWorkAction) {
+                    it.name = taskName
+                }
+            }
+        }
+        """
     }
 
     def "task operations have a build operation as parent iff build listener is attached"() {

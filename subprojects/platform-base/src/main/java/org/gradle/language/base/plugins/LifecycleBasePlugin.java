@@ -22,11 +22,13 @@ import org.gradle.api.file.Directory;
 import org.gradle.api.internal.project.ProjectInternal;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Delete;
-import org.gradle.internal.cleanup.BuildOutputCleanupRegistry;
+import org.gradle.internal.execution.BuildOutputCleanupRegistry;
 import org.gradle.language.base.internal.plugins.CleanRule;
 
 /**
  * <p>A {@link org.gradle.api.Plugin} which defines a basic project lifecycle.</p>
+ *
+ * @see <a href="https://docs.gradle.org/current/userguide/base_plugin.html">Base plugin reference</a>
  */
 public class LifecycleBasePlugin implements Plugin<Project> {
     public static final String CLEAN_TASK_NAME = "clean";

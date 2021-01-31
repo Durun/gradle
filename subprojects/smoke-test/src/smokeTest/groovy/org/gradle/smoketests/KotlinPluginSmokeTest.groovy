@@ -50,7 +50,13 @@ class KotlinPluginSmokeTest extends AbstractSmokeTest {
         assert result.output.contains("Hello world!")
 
         if (version == TestedVersions.kotlin.latest()) {
-            expectNoDeprecationWarnings(result)
+            if (workers) {
+                expectDeprecationWarnings(result, "The WorkerExecutor.submit() method has been deprecated. " +
+                    "This is scheduled to be removed in Gradle 8.0. Please use the noIsolation(), classLoaderIsolation() or processIsolation() method instead. " +
+                    "See https://docs.gradle.org/${GradleVersion.current().version}/userguide/upgrading_version_5.html#method_workerexecutor_submit_is_deprecated for more details.")
+            } else {
+                expectNoDeprecationWarnings(result)
+            }
         }
 
         when:
@@ -80,14 +86,6 @@ class KotlinPluginSmokeTest extends AbstractSmokeTest {
 
         then:
         result.task(':compileKotlin2Js').outcome == SUCCESS
-
-        if (version == TestedVersions.kotlin.latest()) {
-            expectDeprecationWarnings(result,
-                "The compile configuration has been deprecated for dependency declaration. This will fail with an error in Gradle 7.0. " +
-                    "Please use the implementation configuration instead. " +
-                    "Consult the upgrading guide for further information: https://docs.gradle.org/${GradleVersion.current().version}/userguide/upgrading_version_5.html#dependencies_should_no_longer_be_declared_using_the_compile_and_runtime_configurations"
-            )
-        }
 
         where:
         [version, workers] << [

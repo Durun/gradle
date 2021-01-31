@@ -16,12 +16,13 @@
 
 package org.gradle.caching.http.internal
 
-import org.gradle.integtests.fixtures.AbstractIntegrationSpec
+import org.gradle.caching.http.HttpBuildCache
 import org.gradle.integtests.fixtures.timeout.IntegrationTestTimeout
+import org.gradle.internal.deprecation.Documentation
 import org.gradle.test.fixtures.keystore.TestKeyStore
 
 @IntegrationTestTimeout(120)
-class HttpBuildCacheServiceIntegrationTest extends AbstractIntegrationSpec implements HttpBuildCacheFixture {
+class HttpBuildCacheServiceIntegrationTest extends HttpBuildCacheFixture {
 
     static final String ORIGINAL_HELLO_WORLD = """
             public class Hello {
@@ -241,21 +242,18 @@ class HttpBuildCacheServiceIntegrationTest extends AbstractIntegrationSpec imple
         skipped(":compileJava")
     }
 
-    def "produces deprecation warning when using plain HTTP"() {
+    def "throws exception when using plain HTTP"() {
+        when:
         httpBuildCacheServer.useHostname()
         settingsFile.text = useHttpBuildCache(httpBuildCacheServer.uri)
 
-        when:
-        executer.expectDeprecationWarning()
-        withBuildCache().run "jar"
-        succeeds "clean"
-        executer.expectDocumentedDeprecationWarning("Using insecure protocols with remote build cache, without explicit opt-in, has been deprecated. This is scheduled to be removed in Gradle 7.0. " +
-            "Switch remote build cache to a secure protocol (like HTTPS) or allow insecure protocols. " +
-            "See https://docs.gradle.org/current/dsl/org.gradle.caching.http.HttpBuildCache.html#org.gradle.caching.http.HttpBuildCache:allowInsecureProtocol for more details.")
-
         then:
-        withBuildCache().run "jar"
-        skipped(":compileJava")
+        def failure = withBuildCache().fails "jar"
+        failure.assertHasCause(
+            "Using insecure protocols with remote build cache, without explicit opt-in, is unsupported. " +
+                "Switch remote build cache to a secure protocol (like HTTPS) or allow insecure protocols. " +
+                Documentation.dslReference(HttpBuildCache, "allowInsecureProtocol").consultDocumentationMessage()
+        )
     }
 
     def "ssl certificate is validated"() {

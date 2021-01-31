@@ -18,7 +18,6 @@ package org.gradle.api.tasks.javadoc;
 
 import groovy.lang.Closure;
 import org.gradle.api.Action;
-import org.gradle.api.Incubating;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
@@ -38,6 +37,7 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceTask;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.javadoc.internal.JavadocGenerator;
 import org.gradle.api.tasks.javadoc.internal.JavadocSpec;
 import org.gradle.api.tasks.javadoc.internal.JavadocToolAdapter;
 import org.gradle.external.javadoc.MinimalJavadocOptions;
@@ -45,12 +45,11 @@ import org.gradle.external.javadoc.StandardJavadocDocletOptions;
 import org.gradle.internal.file.Deleter;
 import org.gradle.internal.jvm.DefaultModularitySpec;
 import org.gradle.internal.jvm.JavaModuleDetector;
-import org.gradle.jvm.internal.toolchain.JavaToolChainInternal;
-import org.gradle.jvm.platform.JavaPlatform;
-import org.gradle.jvm.platform.internal.DefaultJavaPlatform;
-import org.gradle.jvm.toolchain.JavaToolChain;
+import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JavadocTool;
-import org.gradle.language.base.internal.compile.Compiler;
+import org.gradle.jvm.toolchain.internal.CurrentJvmToolchainSpec;
+import org.gradle.process.internal.ExecActionFactory;
 import org.gradle.util.ConfigureUtil;
 
 import javax.annotation.Nullable;
@@ -196,13 +195,24 @@ public class Javadoc extends SourceTask {
         spec.setWorkingDir(getProjectLayout().getProjectDirectory().getAsFile());
         spec.setOptionsFile(getOptionsFile());
 
-        final JavadocToolAdapter tool = (JavadocToolAdapter) javadocTool.getOrNull();
-        if (tool != null) {
-            tool.execute(spec);
+        if (spec.getExecutable() != null) {
+            new JavadocGenerator(getExecActionFactory()).execute(spec);
         } else {
-            Compiler<JavadocSpec> generator = ((JavaToolChainInternal) getToolChain()).select(getPlatform()).newCompiler(JavadocSpec.class);
-            generator.execute(spec);
+            getJavadocToolAdapter().execute(spec);
         }
+    }
+
+    private JavadocToolAdapter getJavadocToolAdapter() {
+        if (javadocTool.isPresent()) {
+            return (JavadocToolAdapter) this.javadocTool.get();
+        }
+        JavaToolchainSpec explicitToolchain = new CurrentJvmToolchainSpec(getObjectFactory());
+        return (JavadocToolAdapter) getJavaToolchainService().javadocToolFor(explicitToolchain).get();
+    }
+
+    @Inject
+    protected JavaToolchainService getJavaToolchainService() {
+        throw new UnsupportedOperationException();
     }
 
     /**
@@ -215,34 +225,10 @@ public class Javadoc extends SourceTask {
     }
 
     /**
-     * Returns the tool chain that will be used to generate the Javadoc.
-     */
-    @Inject
-    @Deprecated
-    public JavaToolChain getToolChain() {
-        // Implementation is generated
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Sets the tool chain to use to generate the Javadoc.
-     */
-    @Deprecated
-    public void setToolChain(@SuppressWarnings("unused") JavaToolChain toolChain) {
-        // Implementation is generated
-        throw new UnsupportedOperationException();
-    }
-
-    private JavaPlatform getPlatform() {
-        return DefaultJavaPlatform.current();
-    }
-
-    /**
      * Configures the javadoc executable to be used to generate javadoc documentation.
      *
      * @since 6.7
      */
-    @Incubating
     @Nested
     @Optional
     public Property<JavadocTool> getJavadocTool() {
@@ -359,7 +345,6 @@ public class Javadoc extends SourceTask {
      *
      * @since 6.4
      */
-    @Incubating
     @Nested
     public ModularitySpec getModularity() {
         return modularity;
@@ -447,6 +432,11 @@ public class Javadoc extends SourceTask {
 
     @Inject
     protected JavaModuleDetector getJavaModuleDetector() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected ExecActionFactory getExecActionFactory() {
         throw new UnsupportedOperationException();
     }
 }

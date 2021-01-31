@@ -107,7 +107,7 @@ public class BuildLayoutParameters {
         return gradleInstallationHomeDir;
     }
 
-    public boolean getSearchUpwards() {
+    public boolean isSearchUpwards() {
         return searchUpwards;
     }
 

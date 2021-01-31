@@ -18,14 +18,13 @@ package org.gradle.api
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
-import org.gradle.integtests.fixtures.FluidDependenciesResolveRunner
 import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
 import org.gradle.integtests.fixtures.executer.ProjectLifecycleFixture
+import org.gradle.integtests.fixtures.extensions.FluidDependenciesResolveTest
 import org.junit.Rule
-import org.junit.runner.RunWith
 import spock.lang.IgnoreIf
 
-@RunWith(FluidDependenciesResolveRunner)
+@FluidDependenciesResolveTest
 class ConfigurationOnDemandIntegrationTest extends AbstractIntegrationSpec {
 
     @Rule ProjectLifecycleFixture fixture = new ProjectLifecycleFixture(executer, temporaryFolder)
@@ -385,6 +384,7 @@ task two(type: SomeTask)
 
 class SomeTask extends DefaultTask {
     @org.gradle.api.tasks.options.Option(description="some value")
+    @Input
     String value
 }
 """

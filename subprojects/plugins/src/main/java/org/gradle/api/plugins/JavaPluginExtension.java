@@ -99,7 +99,6 @@ public interface JavaPluginExtension {
      *
      * @since 6.0
      */
-    @Incubating
     void withJavadocJar();
 
     /**
@@ -116,7 +115,6 @@ public interface JavaPluginExtension {
      *
      * @since 6.0
      */
-    @Incubating
     void withSourcesJar();
 
     /**
@@ -125,7 +123,6 @@ public interface JavaPluginExtension {
      *
      * @since 6.4
      */
-    @Incubating
     ModularitySpec getModularity();
 
     /**
@@ -136,7 +133,6 @@ public interface JavaPluginExtension {
      *
      * @since 6.7
      */
-    @Incubating
     JavaToolchainSpec getToolchain();
 
     /**
@@ -147,7 +143,6 @@ public interface JavaPluginExtension {
      *
      * @since 6.7
      */
-    @Incubating
     JavaToolchainSpec toolchain(Action<? super JavaToolchainSpec> action);
 
     /**

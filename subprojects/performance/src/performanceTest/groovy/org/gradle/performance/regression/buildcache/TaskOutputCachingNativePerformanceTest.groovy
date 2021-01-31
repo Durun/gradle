@@ -19,18 +19,18 @@ package org.gradle.performance.regression.buildcache
 import org.gradle.performance.annotations.RunFor
 import org.gradle.performance.annotations.Scenario
 
-import static org.gradle.performance.annotations.ScenarioType.TEST
+import static org.gradle.performance.annotations.ScenarioType.PER_DAY
 import static org.gradle.performance.results.OperatingSystem.LINUX
 
 // TODO: Merge with TaskOutputCachingJavaPerformanceTest
 @RunFor(
-    @Scenario(type = TEST, operatingSystems = [LINUX], testProjects = ["bigCppApp", "bigCppMulti", "bigNative"])
+    @Scenario(type = PER_DAY, operatingSystems = [LINUX], testProjects = ["bigCppApp", "bigCppMulti", "bigNative"])
 )
 class TaskOutputCachingNativePerformanceTest extends AbstractTaskOutputCachingPerformanceTest {
 
     def setup() {
         runner.minimumBaseVersion = "4.3"
-        runner.targetVersions = ["6.8.2-20210128010010+0000"]
+        runner.targetVersions = ["7.0-20210122131800+0000"]
         runner.args += ["-Dorg.gradle.caching.native=true"]
     }
 

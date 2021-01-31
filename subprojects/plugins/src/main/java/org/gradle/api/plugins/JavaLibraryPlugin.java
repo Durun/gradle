@@ -35,6 +35,7 @@ import static org.gradle.api.plugins.JavaPlugin.TEST_COMPILE_ONLY_CONFIGURATION_
  * the API and implementation dependencies of a library.</p>
  *
  * @since 3.4
+ * @see <a href="https://docs.gradle.org/current/userguide/java_library_plugin.html">Java Library plugin reference</a>
  */
 public class JavaLibraryPlugin implements Plugin<Project> {
 
@@ -67,7 +68,6 @@ public class JavaLibraryPlugin implements Plugin<Project> {
     private void deprecateConfigurationsForDeclaration(SourceSetContainer sourceSets, ConfigurationContainer configurations) {
         SourceSet sourceSet = sourceSets.getByName("main");
 
-        DeprecatableConfiguration compileConfiguration = (DeprecatableConfiguration) configurations.getByName(sourceSet.getCompileConfigurationName());
         DeprecatableConfiguration apiElementsConfiguration = (DeprecatableConfiguration) configurations.getByName(sourceSet.getApiElementsConfigurationName());
         DeprecatableConfiguration runtimeElementsConfiguration = (DeprecatableConfiguration) configurations.getByName(sourceSet.getRuntimeElementsConfigurationName());
         DeprecatableConfiguration compileClasspathConfiguration = (DeprecatableConfiguration) configurations.getByName(sourceSet.getCompileClasspathConfigurationName());
@@ -77,8 +77,6 @@ public class JavaLibraryPlugin implements Plugin<Project> {
         String compileOnlyConfigurationName = sourceSet.getCompileOnlyConfigurationName();
         String runtimeOnlyConfigurationName = sourceSet.getRuntimeOnlyConfigurationName();
         String apiConfigurationName = sourceSet.getApiConfigurationName();
-
-        compileConfiguration.deprecateForDeclaration(implementationConfigurationName, apiConfigurationName);
 
         apiElementsConfiguration.deprecateForDeclaration(implementationConfigurationName, apiConfigurationName, compileOnlyConfigurationName);
         runtimeElementsConfiguration.deprecateForDeclaration(implementationConfigurationName, apiConfigurationName, compileOnlyConfigurationName, runtimeOnlyConfigurationName);

@@ -18,9 +18,11 @@ package org.gradle.tooling.internal.provider;
 
 import org.gradle.api.execution.internal.TaskInputsListeners;
 import org.gradle.deployment.internal.DeploymentRegistryInternal;
+import org.gradle.execution.WorkValidationWarningReporter;
 import org.gradle.initialization.BuildCancellationToken;
 import org.gradle.initialization.BuildEventConsumer;
 import org.gradle.initialization.BuildRequestMetaData;
+import org.gradle.initialization.ConfigurationCacheSupport;
 import org.gradle.internal.build.BuildStateRegistry;
 import org.gradle.internal.build.event.BuildEventListenerFactory;
 import org.gradle.internal.buildevents.BuildStartedTime;
@@ -34,6 +36,7 @@ import org.gradle.internal.invocation.BuildActionRunner;
 import org.gradle.internal.logging.LoggingManagerInternal;
 import org.gradle.internal.logging.text.StyledTextOutputFactory;
 import org.gradle.internal.operations.BuildOperationListenerManager;
+import org.gradle.internal.operations.BuildOperationProgressEventEmitter;
 import org.gradle.internal.operations.notify.BuildOperationNotificationValve;
 import org.gradle.internal.service.ServiceRegistration;
 import org.gradle.internal.service.ServiceRegistry;
@@ -83,12 +86,13 @@ public class LauncherServices extends AbstractPluginServiceRegistry {
     static class ToolingGlobalScopeServices {
         BuildExecuter createBuildExecuter(StyledTextOutputFactory styledTextOutputFactory,
                                           LoggingManagerInternal loggingManager,
+                                          WorkValidationWarningReporter workValidationWarningReporter,
                                           GradleUserHomeScopeServiceRegistry userHomeServiceRegistry,
                                           ServiceRegistry globalServices) {
             // @formatter:off
             return
                 new SetupLoggingActionExecuter(loggingManager,
-                new SessionFailureReportingActionExecuter(styledTextOutputFactory, Time.clock(),
+                new SessionFailureReportingActionExecuter(styledTextOutputFactory, Time.clock(), workValidationWarningReporter,
                 new StartParamsValidatingActionExecuter(
                 new GradleThreadBuildActionExecuter(
                 new SessionScopeLifecycleBuildActionExecuter(userHomeServiceRegistry, globalServices
@@ -153,14 +157,22 @@ public class LauncherServices extends AbstractPluginServiceRegistry {
                                                           BuildStateRegistry buildStateRegistry,
                                                           PayloadSerializer payloadSerializer,
                                                           BuildOperationNotificationValve buildOperationNotificationValve,
-                                                          BuildCancellationToken buildCancellationToken
+                                                          BuildOperationProgressEventEmitter eventEmitter,
+                                                          BuildCancellationToken buildCancellationToken,
+                                                          ConfigurationCacheSupport configurationCacheSupport,
+                                                          WorkValidationWarningReporter workValidationWarningReporter
         ) {
-            return new InProcessBuildActionExecuter(buildStateRegistry, payloadSerializer, buildOperationNotificationValve, buildCancellationToken,
+            return new InProcessBuildActionExecuter(
+                buildStateRegistry,
+                payloadSerializer,
+                buildOperationNotificationValve,
+                buildCancellationToken,
+                configurationCacheSupport,
                 new RunAsBuildOperationBuildActionRunner(
                     new BuildCompletionNotifyingBuildActionRunner(
-                        new FileSystemWatchingBuildActionRunner(
+                        new FileSystemWatchingBuildActionRunner(eventEmitter,
                             new ValidatingBuildActionRunner(
-                                new BuildOutcomeReportingBuildActionRunner(styledTextOutputFactory,
+                                new BuildOutcomeReportingBuildActionRunner(styledTextOutputFactory, workValidationWarningReporter,
                                     new ChainingBuildActionRunner(buildActionRunners)))))));
         }
     }

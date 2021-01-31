@@ -49,7 +49,6 @@ import org.gradle.internal.build.BuildStateRegistry;
 import org.gradle.internal.build.RootBuildState;
 import org.gradle.internal.buildtree.BuildTreeState;
 import org.gradle.internal.classpath.ClassPath;
-import org.gradle.internal.concurrent.Stoppable;
 import org.gradle.internal.instantiation.InstantiatorFactory;
 import org.gradle.internal.invocation.BuildController;
 import org.gradle.internal.logging.services.LoggingServiceRegistry;
@@ -63,16 +62,14 @@ import org.gradle.internal.service.scopes.ServiceRegistryFactory;
 import org.gradle.internal.session.BuildSessionState;
 import org.gradle.internal.session.CrossBuildSessionState;
 import org.gradle.internal.time.Time;
-import org.gradle.internal.work.DefaultWorkerLeaseService;
 import org.gradle.internal.work.WorkerLeaseRegistry;
 import org.gradle.internal.work.WorkerLeaseService;
 import org.gradle.invocation.DefaultGradle;
 import org.gradle.util.Path;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.util.Collections;
-
-import static org.gradle.internal.concurrent.CompositeStoppable.stoppable;
 
 public class ProjectBuilderImpl {
     private static ServiceRegistry globalServices;
@@ -96,20 +93,20 @@ public class ProjectBuilderImpl {
         return project;
     }
 
-    public Project createProject(String name, File inputProjectDir, File gradleUserHomeDir) {
-        File projectDir = prepareProjectDir(inputProjectDir);
+    public Project createProject(String name, @Nullable File inputProjectDir, File gradleUserHomeDir) {
 
+        final File projectDir = prepareProjectDir(inputProjectDir);
         final File homeDir = new File(projectDir, "gradleHome");
-
-        StartParameter startParameter = new StartParameterInternal();
-
         File userHomeDir = gradleUserHomeDir == null ? new File(projectDir, "userHome") : FileUtils.canonicalize(gradleUserHomeDir);
+        StartParameter startParameter = new StartParameterInternal();
         startParameter.setGradleUserHomeDir(userHomeDir);
         NativeServices.initialize(userHomeDir);
 
+        final ServiceRegistry globalServices = getGlobalServices();
+
         BuildRequestMetaData buildRequestMetaData = new DefaultBuildRequestMetaData(Time.currentTimeMillis());
-        CrossBuildSessionState crossBuildSessionState = new CrossBuildSessionState(getGlobalServices(), startParameter);
-        GradleUserHomeScopeServiceRegistry userHomeServices = getUserHomeServices();
+        CrossBuildSessionState crossBuildSessionState = new CrossBuildSessionState(globalServices, startParameter);
+        GradleUserHomeScopeServiceRegistry userHomeServices = userHomeServicesOf(globalServices);
         BuildSessionState buildSessionState = new BuildSessionState(userHomeServices, crossBuildSessionState, startParameter, buildRequestMetaData, ClassPath.EMPTY, new DefaultBuildCancellationToken(), buildRequestMetaData.getClient(), new NoOpBuildEventConsumer());
         BuildTreeState buildTreeState = new BuildTreeState(buildSessionState.getServices(), BuildType.TASKS);
         TestBuildScopeServices buildServices = new TestBuildScopeServices(buildTreeState.getServices(), homeDir);
@@ -141,39 +138,16 @@ public class ProjectBuilderImpl {
         WorkerLeaseRegistry.WorkerLease workerLease = workerLeaseService.getWorkerLease();
         coordinationService.withStateLock(DefaultResourceLockCoordinationService.lock(workerLease, project.getMutationState().getAccessLock()));
 
-        project.getExtensions().getExtraProperties().set(
-            "ProjectBuilder.stoppable",
-            stoppable(
-                (Stoppable) workerLeaseService::releaseCurrentProjectLocks,
-                (Stoppable) ((DefaultWorkerLeaseService) workerLeaseService)::releaseCurrentResourceLocks,
-                buildServices,
-                buildTreeState,
-                buildSessionState,
-                crossBuildSessionState
-            )
-        );
         return project;
     }
 
-    public static void stop(Project rootProject) {
-        ((Stoppable) rootProject.getExtensions().getExtraProperties().get("ProjectBuilder.stoppable"))
-            .stop();
-    }
-
-    private GradleUserHomeScopeServiceRegistry getUserHomeServices() {
-        ServiceRegistry globalServices = getGlobalServices();
+    private GradleUserHomeScopeServiceRegistry userHomeServicesOf(ServiceRegistry globalServices) {
         return globalServices.get(GradleUserHomeScopeServiceRegistry.class);
     }
 
     public synchronized static ServiceRegistry getGlobalServices() {
         if (globalServices == null) {
-            globalServices = ServiceRegistryBuilder
-                .builder()
-                .displayName("global services")
-                .parent(LoggingServiceRegistry.newNestedLogging())
-                .parent(NativeServices.getInstance())
-                .provider(new TestGlobalScopeServices())
-                .build();
+            globalServices = createGlobalServices();
             // Inject missing interfaces to support the usage of plugins compiled with older Gradle versions.
             // A normal gradle build does this by adding the MixInLegacyTypesClassLoader to the class loader hierarchy.
             // In a test run, which is essentially a plain Java application, the classpath is flattened and injected
@@ -185,9 +159,19 @@ public class ProjectBuilderImpl {
         return globalServices;
     }
 
-    public File prepareProjectDir(File projectDir) {
+    private static ServiceRegistry createGlobalServices() {
+        return ServiceRegistryBuilder
+            .builder()
+            .displayName("global services")
+            .parent(LoggingServiceRegistry.newNestedLogging())
+            .parent(NativeServices.getInstance())
+            .provider(new TestGlobalScopeServices())
+            .build();
+    }
+
+    public File prepareProjectDir(@Nullable File projectDir) {
         if (projectDir == null) {
-            TemporaryFileProvider temporaryFileProvider = new TmpDirTemporaryFileProvider();
+            TemporaryFileProvider temporaryFileProvider = TmpDirTemporaryFileProvider.createLegacy();
             projectDir = temporaryFileProvider.createTemporaryDirectory("gradle", "projectDir");
             // TODO deleteOnExit won't clean up non-empty directories (and it leaks memory for long-running processes).
             projectDir.deleteOnExit();

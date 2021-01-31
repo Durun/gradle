@@ -24,13 +24,11 @@ import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.internal.project.taskfactory.TaskIdentity
 import org.gradle.api.internal.tasks.InputChangesAwareTaskAction
-import org.gradle.api.logging.LogLevel
 import org.gradle.api.tasks.AbstractTaskTest
 import org.gradle.api.tasks.TaskExecutionException
 import org.gradle.api.tasks.TaskInstantiationException
 import org.gradle.internal.Actions
 import org.gradle.internal.event.ListenerManager
-import org.gradle.internal.logging.slf4j.ContextAwareTaskLogger
 import spock.lang.Issue
 
 import java.util.concurrent.Callable
@@ -53,14 +51,14 @@ class DefaultTaskTest extends AbstractTaskTest {
         Thread.currentThread().contextClassLoader = cl
     }
 
-    AbstractTask getTask() {
+    DefaultTask getTask() {
         defaultTask
     }
 
     def "default task"() {
         given:
         def identity = TaskIdentity.create(TEST_TASK_NAME, Task, project)
-        Task task = AbstractTask.injectIntoNewInstance(project, identity, { new DefaultTask() } as Callable)
+        Task task = DefaultTask.injectIntoNewInstance(project, identity, { new DefaultTask() } as Callable)
 
         expect:
         task.dependsOn.isEmpty()
@@ -76,7 +74,7 @@ class DefaultTaskTest extends AbstractTaskTest {
     def "can inject values into task when using no-args constructor"() {
         given:
         def identity = TaskIdentity.create(TEST_TASK_NAME, Task, project)
-        def task = AbstractTask.injectIntoNewInstance(project, identity, { new DefaultTask() } as Callable)
+        def task = DefaultTask.injectIntoNewInstance(project, identity, { new DefaultTask() } as Callable)
 
         expect:
         task.project.is(project)
@@ -525,16 +523,21 @@ class DefaultTaskTest extends AbstractTaskTest {
         task.actions[0].displayName == "Execute unnamed action"
     }
 
-    def "can rewrite task logger warnings"() {
-        given:
-        def rewriter = Mock(ContextAwareTaskLogger.MessageRewriter)
+    def "can detect tasks with custom actions added"() {
+        expect:
+        !task.hasCustomActions
 
         when:
-        task.setLoggerMessageRewriter(rewriter)
-        task.logger.warn("test")
+        task.prependParallelSafeAction {}
 
         then:
-        1 * rewriter.rewrite(LogLevel.WARN, "test")
+        !task.hasCustomActions
+
+        when:
+        task.doFirst {}
+
+        then:
+        task.hasCustomActions
     }
 }
 

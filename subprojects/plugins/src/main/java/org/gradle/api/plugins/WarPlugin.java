@@ -40,6 +40,8 @@ import java.util.concurrent.Callable;
 /**
  * <p>A {@link Plugin} which extends the {@link JavaPlugin} to add tasks which assemble a web application into a WAR
  * file.</p>
+ *
+ * @see <a href="https://docs.gradle.org/current/userguide/war_plugin.html">WAR plugin reference</a>
  */
 public class WarPlugin implements Plugin<Project> {
     public static final String PROVIDED_COMPILE_CONFIGURATION_NAME = "providedCompile";
@@ -94,8 +96,8 @@ public class WarPlugin implements Plugin<Project> {
         Configuration provideRuntimeConfiguration = configurationContainer.create(PROVIDED_RUNTIME_CONFIGURATION_NAME).setVisible(false).
             extendsFrom(provideCompileConfiguration).
             setDescription("Additional runtime classpath for libraries that should not be part of the WAR archive.");
-        configurationContainer.getByName(JavaPlugin.COMPILE_CONFIGURATION_NAME).extendsFrom(provideCompileConfiguration);
-        configurationContainer.getByName(JavaPlugin.RUNTIME_CONFIGURATION_NAME).extendsFrom(provideRuntimeConfiguration);
+        configurationContainer.getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME).extendsFrom(provideCompileConfiguration);
+        configurationContainer.getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME).extendsFrom(provideRuntimeConfiguration);
     }
 
     private void configureComponent(Project project, PublishArtifact warArtifact) {

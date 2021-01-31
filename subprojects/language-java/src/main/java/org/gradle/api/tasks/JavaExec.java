@@ -18,7 +18,6 @@ package org.gradle.api.tasks;
 
 import org.apache.tools.ant.types.Commandline;
 import org.gradle.api.Action;
-import org.gradle.api.Incubating;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.internal.ConventionTask;
@@ -740,18 +739,15 @@ public class JavaExec extends ConventionTask implements JavaExecSpec {
      * @since 6.1
      */
     @Internal
-    @Incubating
     public Provider<ExecResult> getExecutionResult() {
         return execResult;
     }
-
 
     /**
      * Configures the java executable to be used to run the tests.
      *
      * @since 6.7
      */
-    @Incubating
     @Nested
     @Optional
     public Property<JavaLauncher> getJavaLauncher() {
