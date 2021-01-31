@@ -1,1 +1,0 @@
- - File system watching enabled by default
